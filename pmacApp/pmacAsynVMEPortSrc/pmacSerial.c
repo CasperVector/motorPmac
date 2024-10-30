@@ -76,15 +76,24 @@ DEVELOPMENT CENTER AT ARGONNE NATIONAL LABORATORY (708-252-2000).
  * INCLUDES
  */
 
-/* VxWorks Includes */
 
-#include	<vxWorks.h>
-#include 	<stdlib.h>	/* Sergey */
-#include	<vxLib.h>
-#include	<ioLib.h>
-#include	<stdio.h>
-#include	<string.h>
-#include	<selectLib.h>
+#include <rtems/libio.h>
+//#include <unistd.h>
+#include <fcntl.h>
+//#include <sys/ioctl.h>
+#include <termios.h>
+#include <sys/filio.h>
+#include <sys/select.h>
+
+#include <epicsStdlib.h>
+#include <epicsStdioRedirect.h>
+#include <epicsPrint.h>
+#include <string.h>
+#include <devLib.h>
+
+#define ERROR (-1)
+#define OK (0)
+#define printErr errlogPrintf
 
 /* local includes */
 
@@ -102,7 +111,7 @@ DEVELOPMENT CENTER AT ARGONNE NATIONAL LABORATORY (708-252-2000).
 #endif
 
 #if PMAC_DIAGNOSTICS
-#define PMAC_MESSAGE	printf
+#define PMAC_MESSAGE	errlogPrintf
 #define PMAC_DEBUG(level,code)       { if (pmacSerialDebug >= (level)) { code } }
 #else
 #define PMAC_DEBUG(level,code)      ;
@@ -213,40 +222,35 @@ int pmacSerial
 			exit (ERROR);
 		}
 	}
-	
+
+
+    struct termios tio;
 	/* Set Serial TTY Options */
-	status = ioctl (fdPmac, FIOSETOPTIONS, OPT_RAW);
-	if (status == ERROR)
+    status = tcgetattr(fdPmac, &tio);
+	if (status)
 	{
 		printErr ("%s: Unable to set device options\n", MyName);
 		exit (status);
 	}
 
-	/* Set User-Specified or Default Baud Rate */
-	if (ttyBaud != 0)
+    /* Set User-Specified or Default Baud Rate */
+    if (ttyBaud == 0) ttyBaud = PMAC_DEFAULT_BAUD;
+
+    cfmakeraw (&tio);
+    status = cfsetispeed(&tio, ttyBaud);
+    status |= cfsetospeed(&tio, ttyBaud);
+     /* Set new serial port settings  */
+    status |= tcsetattr(fdPmac, TCSAFLUSH, &tio);
+	if (status)
 	{
-		status = ioctl (fdPmac, FIOBAUDRATE, ttyBaud);
-		if (status == ERROR)
-		{
-			printErr ("%s: Unable to set baudrate %d\n",
-					MyName, ttyBaud);
-			exit (status);
-		}
-	}
-	else
-	{
-		status = ioctl (fdPmac, FIOBAUDRATE, PMAC_DEFAULT_BAUD);
-		if (status == ERROR)
-		{
-			printErr ("%s: Unable to set default baudrate\n",
-					MyName, PMAC_DEFAULT_BAUD);
-			exit (status);
-		}
+		printErr ("%s: Unable to set baudrate %d\n",
+				MyName, ttyBaud);
+		exit (status);
 	}
 	
 	/* Flush Input And Output Buffers */
-	status = ioctl (fdPmac, FIOFLUSH, 0);
-	if (status == ERROR)
+	status = tcflush(fdPmac, TCIOFLUSH);
+	if (status)
 	{
 		printErr ("%s: Unable to flush buffers\n", MyName);
 		exit (status);
@@ -268,13 +272,13 @@ int pmacSerial
 	/* Loop Until Exit */
 	while ( !exitNow )
 	{
-
 		/* Write String To PMAC Prefixed By Control-Z */
-		status = fdprintf (fdPmac, "%c%s\r", CONTROL_Z, commandBuffer);
-		if (status == ERROR)
+        char tbuf[PMAC_MAX_COMMAND+2];
+        size_t tlen = sprintf(tbuf, "%c%s\r", CONTROL_Z, commandBuffer);
+        if ( write(fdPmac, tbuf, tlen) != tlen )
 		{
 			printErr ("%s: Error during ouptut\n", MyName);
-			return (status);
+			return ERROR;
 		}
 		
 		/* Loop Until Response Is Acknowledged */
@@ -315,7 +319,8 @@ int pmacSerial
 			}
 		
 			/* Read Bytes */
-			maxBytes = min (bytesUnread, PMAC_MAX_RESPONSE);
+			//maxBytes = min (bytesUnread, PMAC_MAX_RESPONSE);
+			maxBytes = (bytesUnread < PMAC_MAX_RESPONSE ? bytesUnread : PMAC_MAX_RESPONSE);
 			if (maxBytes == 0)
 			{
 				printErr ("%s: maxBytes = %d\n", MyName, maxBytes);

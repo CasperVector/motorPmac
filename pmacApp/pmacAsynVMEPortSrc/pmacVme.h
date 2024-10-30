@@ -93,6 +93,7 @@ DEVELOPMENT CENTER AT ARGONNE NATIONAL LABORATORY (708-252-2000).
 
 /* #define WAIT_TIMEOUT	60 */		/* timeout in ticks for semTake */
 #define WAIT_TIMEOUT	   3600		/* timeout in ticks for semTake -- changed 2005-05-09 */
+#define WAIT_SEC_TIMEOUT   (WAIT_TIMEOUT*epicsThreadSleepQuantum())		/* timeout in seconds */
 #define PMAC_BASE_MBX_REGS (16)
 #define PMAC_STRLEN_FWVER  (31)
 
@@ -133,9 +134,9 @@ typedef struct  /* PMAC_CTLR */
 	unsigned	irqLevel;
 	unsigned long	vmebusBase;
 	unsigned long	vmebusDpram;
-	SEM_ID		ioMbxLockSem;
-	SEM_ID		ioMbxReceiptSem;
-	SEM_ID		ioMbxReadmeSem;
+	epicsEventId ioMbxLockSem;
+	epicsEventId ioMbxReceiptSem;
+	epicsEventId ioMbxReadmeSem;
 	char		firmwareVersion[PMAC_STRLEN_FWVER];
 } PMAC_CTLR;
 

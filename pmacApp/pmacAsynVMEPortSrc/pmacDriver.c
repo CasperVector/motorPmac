@@ -8,12 +8,22 @@
 */
 
 /* ANSI C headers */
-#include <stdio.h>
+#include <epicsStdioRedirect.h>
 
-/* vxWorks headers */
-#include <iosLib.h>    /* For DEV_HDR, iosDrvCreate and iosDevAdd */
-#include <logLib.h>    /* For logMsg */
-#include <taskLib.h>   /* For taskDelay */
+
+/* rtems headers */
+#include <rtems.h>
+#include <rtems/io.h>
+#include <rtems/error.h>
+#include <rtems/system.h>
+#include <rtems/console.h>
+#include <rtems/termiostypes.h>
+#include <rtems/seterr.h>
+//#include  <libcpu/io.h>
+#include <bsp.h>
+#include <bsp/fatal.h>
+#include <sys/filio.h>
+
 
 /* EPICS headers */
 #include <epicsRingBytes.h>
@@ -22,6 +32,11 @@
 #include <epicsEvent.h>
 #include <cantProceed.h>
 #include <devLib.h>
+
+typedef int STATUS;
+#define IMPORT	extern
+#define OK		0
+#define ERROR		(-1)
 
 /* PMAC headers */
 #include <pmacVme.h>
@@ -36,37 +51,41 @@
 #define PMAC_BASE_MBX_REGS_OUT  15
 #define PMAC_BASE_ASC_REGS_OUT 160
 
+#define logMsg errlogPrintf
+
 int    pmacDrvNumAsc  = 0;     /* DPRAM ASCII driver number   */
 int    pmacDrvNumMbx  = 0;     /* Mailbox ASCII driver number */
 int    replyQueueSize = 40960; /* Size of ring buffer - large enough for a list gather response of 1024 samples of 3 variables */
 
 typedef struct
 {
-    DEV_HDR          devHdr;
+	rtems_termios_device_context base;
+	rtems_termios_tty *tty;
     int              ctlr;
     int              openFlag;
     int              cancelFlag;
     int              polling;
-    epicsRingBytesId replyQ;
-    epicsEventId     ioReadmeId;
     epicsEventId     ioReceivedId;
     void             (*readMeISR)( void * );
+    size_t           lastsent;			/* bytes transmitted in last write cycle */
 } PMAC_DEV;
 
 /* Function prototypes */
 
-static int  pmacOpen(           PMAC_DEV *, char *, int );
-static int  pmacClose(          PMAC_DEV *              );
-static int  pmacRead(           PMAC_DEV *, char *, int );
-static int  pmacIoctl(          PMAC_DEV *, int, int *  );
-static int  pmacWriteAsc(       PMAC_DEV *, char *, int );
-static int  pmacWriteMbx(       PMAC_DEV *, char *, int );
-static void pmacAscReadMeISR(   PMAC_DEV *              );
-static void pmacMbxReadMeISR(   PMAC_DEV *              );
-static void pmacMbxReceivedISR( PMAC_DEV *              );
+static void pmacAscReadMeISR( rtems_termios_device_context *base );
+static void pmacMbxReadMeISR( rtems_termios_device_context *base );
+static void pmacMbxReceivedISR( rtems_termios_device_context *base );
 
-PMAC_DEV pmacAscDev[PMAC_MAX_CTLRS];
-PMAC_DEV pmacMbxDev[PMAC_MAX_CTLRS];
+static bool pmacOpen( rtems_termios_tty *tty, rtems_termios_device_context *base, struct termios *term, rtems_libio_open_close_args_t *args);
+static void pmacClose( rtems_termios_tty *tty, rtems_termios_device_context *base, rtems_libio_open_close_args_t *args);
+static bool pmacSetAttributes( rtems_termios_device_context *base, const struct termios *term);
+static int  pmacIoctl( rtems_termios_device_context *base, ioctl_command_t request, void *arg);
+static void pmacWriteAsc( rtems_termios_device_context *base, const char *buffer, size_t nBytes);
+static void pmacWriteMbx( rtems_termios_device_context *base, const char *buffer, size_t nBytes);
+
+
+static PMAC_DEV pmacAscDev[PMAC_MAX_CTLRS];
+static PMAC_DEV pmacMbxDev[PMAC_MAX_CTLRS];
 
 IMPORT int       pmacVmeConfigLock;
 IMPORT PMAC_CTLR pmacVmeCtlr[PMAC_MAX_CTLRS];
@@ -81,6 +100,12 @@ IMPORT PMAC_CTLR pmacVmeCtlr[PMAC_MAX_CTLRS];
 #ifdef TRANSACTION_LOCK
 static epicsEventId transactionLock = NULL;
 #endif
+
+/* DISABLE_MBX will disable the VME mailbox comms code which is currently not fully debugged
+   and will crash in the interrupt routine.
+   The VME mailox buffer is only 16 characters much less than the ASCII DPRAM buffer so
+   less efficient, it may not be worth fixing mailbox comms */
+#define DISABLE_MBX
 
 /* This is the polling task for DPRAM ASCII communications.  This task is only
    created if the driver is requested to use polling and the default behaviour
@@ -97,11 +122,33 @@ static void tpmac_poll_task_c(void *ptr)
   while(1)
   {
     /* Call the same routine that would be interrupted */
-    pmacAscReadMeISR(pDev);
+    pmacAscReadMeISR(&pDev->base);
     /* Make sure other scheduled tasks are allowed to execute */
-    taskDelay(0);
+    epicsThreadSleep(0); // this may be a tick so longer than original vxWorks taskDelay(0)??
   }
 }
+
+const rtems_termios_device_handler PMAC_handler_interrupt_Asc =
+{
+	.first_open = pmacOpen,
+	.last_close = pmacClose,
+	.poll_read = NULL,
+	.write = pmacWriteAsc,
+	.set_attributes = pmacSetAttributes,
+	.ioctl = pmacIoctl,
+	.mode = TERMIOS_IRQ_DRIVEN
+};
+
+const rtems_termios_device_handler PMAC_handler_interrupt_Mbx =
+{
+	.first_open = pmacOpen,
+	.last_close = pmacClose,
+	.poll_read = NULL,
+	.write = pmacWriteMbx,
+	.set_attributes = pmacSetAttributes,
+	.ioctl = pmacIoctl,
+	.mode = TERMIOS_IRQ_DRIVEN
+};
 
 /* This routine installs the DPRAM ASCII driver and the Mailbox ASCII driver.
    It adds a DRPAM ASCII device and a Mailbox ASCII device for every PMAC
@@ -114,11 +161,12 @@ STATUS pmacDrv(int polling)
   STATUS ret;
   int    installedAsc;
   int    installedMbx;
-  int    i;
-  char   devNameAsc[32];
-  char   devNameMbx[32];
+  int    i=0;
+  static char   devNameAsc[32];
+  static char   devNameMbx[32];
   char   errorString[64];
   long   status;
+  rtems_status_code rt_stat;
 
   ret          = OK;
   installedAsc = FALSE;
@@ -134,12 +182,23 @@ STATUS pmacDrv(int polling)
     ret          = OK;
   }
 
+  rtems_termios_initialize();
+  //rtems_termios_bufsize need large replyQueueSize? (see definition at top of file)
+  //  rtems_status_code rtems_termios_bufsize (
+  //  size_t cbufsize,     /* cooked buffer size */
+  //  size_t raw_input,    /* raw input buffer size */
+  //  size_t raw_output    /* raw output buffer size */
+  //  );
+  rtems_termios_bufsize(1024,replyQueueSize,1024);
+
   if( !installedAsc )
   {
 #ifdef TRANSACTION_LOCK
     if (transactionLock == NULL) transactionLock = epicsEventMustCreate (epicsEventFull);
 #endif
-    pmacDrvNumAsc = iosDrvInstall( 0, 0, pmacOpen,  pmacClose, pmacRead, pmacWriteAsc, pmacIoctl );
+    pmacDrvNumAsc++;
+    if( PMAC_DRIVER_DEBUG )
+      printf( "pmacDrv installAsc\n" );
 
     /* Add a DPRAM ASCII device for every configured card */
     for( i=0; i < PMAC_MAX_CTLRS; i++ )
@@ -148,30 +207,38 @@ STATUS pmacDrv(int polling)
       pmacAscDev[i].openFlag   = 0;
       pmacAscDev[i].cancelFlag = 0;
       pmacAscDev[i].polling    = polling;
+      pmacAscDev[i].tty        = NULL;
 
       if( pmacVmeCtlr[i].configured )
       {
-        sprintf( devNameAsc, "/dev/pmac/%d/asc", pmacVmeCtlr[i].ctlr );
-        ret = iosDevAdd( &pmacAscDev[i].devHdr, devNameAsc, pmacDrvNumAsc);
-        if( ret == ERROR )
+        rtems_termios_device_context_initialize(&pmacAscDev[i].base, "PMAC-ASC");
+
+        sprintf( devNameAsc, "/dev/pmacasc%d", pmacVmeCtlr[i].ctlr );
+        rt_stat = rtems_termios_device_install(devNameAsc, &PMAC_handler_interrupt_Asc, NULL, &pmacAscDev[i].base);
+        if( rt_stat != RTEMS_SUCCESSFUL )
         {
-          sprintf( errorString, "pmacDrv: Error adding: /dev/pmac/%d/asc device", pmacVmeCtlr[i].ctlr );
+          sprintf( errorString, "pmacDrv: Error adding: /dev/pmacasc%d device (rtems err: %d %s )", pmacVmeCtlr[i].ctlr, rt_stat, rtems_status_text(rt_stat) );
           cantProceed( errorString );
+          ret = ERROR;
         }
 
-        pmacAscDev[i].replyQ = epicsRingBytesCreate(replyQueueSize);
-        if( !pmacAscDev[i].replyQ )
-          cantProceed("pmacDrv: Failed to create ring buffer");
-
-        pmacAscDev[i].ioReadmeId   = epicsEventMustCreate( epicsEventEmpty ); 
         pmacAscDev[i].ioReceivedId = 0;
         pmacAscDev[i].readMeISR    = (void *)pmacAscReadMeISR;
 
         if (polling == 0){
           status = devConnectInterruptVME( pmacVmeCtlr[i].irqVector + 1,
-                                        (void *)pmacAscReadMeISR, (void *) &(pmacAscDev[i]) );
+                                        (void *)pmacAscReadMeISR, &pmacAscDev[i].base );
+          if( PMAC_DRIVER_DEBUG )
+            printf("pmacDrv: &(pmacAscDev[i])=%#010lx\n", (long unsigned int)&pmacAscDev[i].base);
+
           if(!RTN_SUCCESS(status))
             cantProceed("pmacDrv: Failed to connect to DPRAM ASCII readme interrupt");
+
+          if( PMAC_DRIVER_DEBUG )
+            printf ("Enabling interrupt level %d\n", pmacVmeCtlr[i].irqLevel);
+          status = devEnableInterruptLevelVME ( pmacVmeCtlr[i].irqLevel);
+          if (!RTN_SUCCESS(status))
+            cantProceed("pmacDrv: Failure to enable interrupt level.");
         } else {
           /* Create the thread that calls the interrupt service routine when interrupts are not available */
           status = (epicsThreadCreate("tpmac_poll_task",
@@ -199,7 +266,9 @@ STATUS pmacDrv(int polling)
 
   if( !installedMbx )
   {
-    pmacDrvNumMbx = iosDrvInstall( 0, 0, pmacOpen,  pmacClose, pmacRead, pmacWriteMbx, pmacIoctl );
+    pmacDrvNumMbx++;
+    if( PMAC_DRIVER_DEBUG )
+      printf( "pmacDrv installMbx\n" );
 
     /* Add a Mailbox ASCII device for every configured card */
     for( i=0; i < PMAC_MAX_CTLRS; i++ )
@@ -207,130 +276,117 @@ STATUS pmacDrv(int polling)
       pmacMbxDev[i].ctlr       = pmacVmeCtlr[i].ctlr;
       pmacMbxDev[i].openFlag   = 0;
       pmacMbxDev[i].cancelFlag = 0;
-      pmacAscDev[i].polling    = polling;
+      pmacMbxDev[i].polling    = polling;
+      pmacMbxDev[i].tty        = NULL;
 
       if ( pmacVmeCtlr[i].configured )
       {
-        sprintf( devNameMbx, "/dev/pmac/%d/mbx", pmacVmeCtlr[i].ctlr );           
-        ret = iosDevAdd( &pmacMbxDev[i].devHdr, devNameMbx, pmacDrvNumMbx );
-        if( ret == ERROR ) 
+        rtems_termios_device_context_initialize(&pmacMbxDev[i].base, "PMAC-MBX");
+
+        sprintf( devNameMbx, "/dev/pmacmbx%d", pmacVmeCtlr[i].ctlr );
+        rt_stat = rtems_termios_device_install(devNameMbx, &PMAC_handler_interrupt_Mbx, NULL, &pmacMbxDev[i].base);
+        if( rt_stat != RTEMS_SUCCESSFUL )
         {
-          sprintf( errorString, "pmacDrv: Error adding: /dev/pmac/%d/mbx device", pmacVmeCtlr[i].ctlr );
+          sprintf( errorString, "pmacDrv: Error adding: /dev/pmacmbx%d device (rtems err: %d %s)", pmacVmeCtlr[i].ctlr, rt_stat, rtems_status_text(rt_stat) );
           cantProceed( errorString );
+          ret = ERROR;
         }
 
-        pmacMbxDev[i].replyQ = epicsRingBytesCreate(replyQueueSize);
-        if( !pmacMbxDev[i].replyQ )
-          cantProceed("pmacDrv: Failed to create ring buffer");
-
-        pmacMbxDev[i].ioReadmeId   = epicsEventMustCreate( epicsEventEmpty ); 
         pmacMbxDev[i].ioReceivedId = epicsEventMustCreate( epicsEventEmpty );
         pmacMbxDev[i].readMeISR    = (void *)pmacMbxReadMeISR;
 
         status = devConnectInterruptVME( pmacVmeCtlr[i].irqVector,
-                                      (void *)pmacMbxReadMeISR, (void *) &(pmacMbxDev[i]) );
+                                      (void *)pmacMbxReadMeISR, &(pmacMbxDev[i].base) );
 
         if( !RTN_SUCCESS(status) )
           cantProceed("pmacDrv: Failed to connect to Mailbox ASCII readme interrupt");
 
         status = devConnectInterruptVME( pmacVmeCtlr[i].irqVector - 1,
-                                      (void *)pmacMbxReceivedISR, (void *) &(pmacMbxDev[i]) );
+                                      (void *)pmacMbxReceivedISR, &(pmacMbxDev[i].base) );
 
         /* Pre-enable responses to commands */
         /* pmacVmeCtlr[i].pBase->mailbox.MB[1].data = 0; */
+        if( PMAC_DRIVER_DEBUG )
+          printf("pmacDrv: &(pmacMbxDev[i])=%#010lx\n", (long unsigned int)&pmacMbxDev[i].base);
 
-       if( !RTN_SUCCESS(status) )
+        if( !RTN_SUCCESS(status) )
           cantProceed("pmacDrv: Failed to connect to Mailbox ASCII received interrupt");
+
+        if( PMAC_DRIVER_DEBUG )
+          printf ("Enabling interrupt level %d\n", pmacVmeCtlr[i].irqLevel);
+        status = devEnableInterruptLevelVME ( pmacVmeCtlr[i].irqLevel);
+        if (!RTN_SUCCESS(status))
+          cantProceed("pmacDrv: Failure to enable interrupt level.");
       }
     }
   }
+
   return( ret );
 }
 
 /* The routines:                                                      */
 /*   pmacOpen                                                         */
 /*   pmacClose                                                        */
-/*   pmacRead                                                         */
+/*   pmacSetAttributes                                                */
 /*   pmacIoctl                                                        */
 /*   are generic between the DPRAM ASCII and Mailbox ASCII interfaces */
 
-static int pmacOpen( PMAC_DEV *pPmacDev, char * remainder, int mode )
+static bool pmacOpen( rtems_termios_tty *tty, rtems_termios_device_context *base, struct termios *term, rtems_libio_open_close_args_t *args)
 {
-  if( remainder[0] != 0 || pPmacDev->openFlag )
-    return ERROR;
-  else
-    pPmacDev->openFlag = TRUE;
+  PMAC_DEV *pPmacDev  = (PMAC_DEV *) base;
+  if( PMAC_DRIVER_DEBUG )
+	printf("pmacOpen tty=%#010lx base=%#010lx\n", (long unsigned int)tty, (long unsigned int)base);
 
-  return( (int)pPmacDev );
-}
-
-
-static int pmacClose( PMAC_DEV *pPmacDev )
-{
   if( pPmacDev->openFlag )
-    pPmacDev->openFlag = FALSE;
-
-  return( OK );
-}
-
-int pmacNoInterruptCount=0;
-int pmacDriverDebug=0;
-
-static int pmacRead( PMAC_DEV *pPmacDev, char *buffer, int nBytes )
-{
-  int numRead;
-
-  numRead = epicsRingBytesGet(pPmacDev->replyQ, buffer, nBytes);
-
-  if( numRead == 0 )  /* The buffer was empty */
+    return FALSE;
+  else
   {
-      epicsEventWaitStatus status;
-
-      /* Check to see if the semaphore was given */
-      status = epicsEventWaitWithTimeout( pPmacDev->ioReadmeId, 0.2 );
-
-      if (status == epicsEventWaitTimeout)
-      {
-          int irqLevel = pmacVmeCtlr[pPmacDev->ctlr].irqLevel;
-
-	  pmacNoInterruptCount++;
-
-          if ( pPmacDev->readMeISR ) {
-              if (pmacDriverDebug)
-                  logMsg( "Manually calling ISR for PMAC card %d, vector %d\n",
-                          pPmacDev->ctlr, pmacVmeCtlr[pPmacDev->ctlr].irqVector,0,0,0,0 );
-
-              devDisableInterruptLevel (intVME, irqLevel);
-              pPmacDev->readMeISR( pPmacDev );
-              devEnableInterruptLevel (intVME, irqLevel);
-          }
-          epicsEventWait( pPmacDev->ioReadmeId );
-      }
-
-      if( pPmacDev->cancelFlag )
-      {
-        pPmacDev->cancelFlag = FALSE;
-      }
-      else
-      {
-        numRead    = epicsRingBytesGet(pPmacDev->replyQ, buffer, nBytes);
-      }
+    pPmacDev->tty = tty;
+    pPmacDev->openFlag = TRUE;
   }
-
-  return( numRead );
+  return TRUE;
 }
 
 
-static int pmacIoctl( PMAC_DEV *pPmacDev, int request, int *arg )
+static void pmacClose( rtems_termios_tty *tty, rtems_termios_device_context *base, rtems_libio_open_close_args_t *args)
 {
-  int ret = 0;
-
-  switch( request )
+  PMAC_DEV *pPmacDev  = (PMAC_DEV *) base;
+  if( PMAC_DRIVER_DEBUG )
+	printf("pmacClose\n");
+  if( pPmacDev->openFlag )
   {
-    case FIONREAD:
-      *arg = epicsRingBytesUsedBytes( pPmacDev->replyQ );
-      break;
+    pPmacDev->tty = NULL;
+    pPmacDev->openFlag = FALSE;
+  }
+  return;
+}
 
+
+// dummy function - no attributes to handle
+static bool pmacSetAttributes( rtems_termios_device_context *base, const struct termios *term)
+{
+	PMAC_DEV *pPmacDev __attribute__ ((unused)) = (PMAC_DEV *) base;
+    if( PMAC_DRIVER_DEBUG )
+	  printf("pmacSetAttributes\n");
+
+	return TRUE;
+}
+
+static int pmacIoctl( rtems_termios_device_context *base, ioctl_command_t request, void *arg)
+{
+  int ret = OK;
+  PMAC_DEV   *pPmacDev = (PMAC_DEV *) base;
+  if( PMAC_DRIVER_DEBUG )
+    printf("pmacIoctl\n");
+
+  switch ( request ) {
+    case FIONREAD: {
+      /* return number of characters in input buffer */
+      *(int*)arg = pPmacDev->tty->ccount; // from cooked buffer???
+      // maybe this should look at struct rtems_termios_rawbuf pPmacDev->tty->rawInBuf head - tail ???
+      }
+      break;
+/* Following vxWorks code not used, replyQ replaced with termios buffer
     case FIORFLUSH:
       epicsRingBytesFlush( pPmacDev->replyQ );
       break;
@@ -338,19 +394,18 @@ static int pmacIoctl( PMAC_DEV *pPmacDev, int request, int *arg )
     case FIOCANCEL:
       pPmacDev->cancelFlag = TRUE;
       epicsEventSignal( pPmacDev->ioReadmeId );
-      break;
-
+      break; */
     default:
-      break;
+      rtems_set_errno_and_return_minus_one( EINVAL );
   }
+
   return( ret );
 }
 
 
 /* The write and ISR routines are specific to the */
 /* DPRAM ASCII and Mailbox ASCII interfaces       */
-
-static int pmacWriteAsc( PMAC_DEV *pDev, char *buffer, int nBytes )
+static void pmacWriteAsc( rtems_termios_device_context *base, const char *buffer, size_t nBytes)
 {
   int        i;
   int        ctlr;
@@ -358,6 +413,7 @@ static int pmacWriteAsc( PMAC_DEV *pDev, char *buffer, int nBytes )
   static int totalWritten = 0;
   PMAC_DPRAM *dpramAsciiOut;
   PMAC_DPRAM *dpramAsciiOutControl;
+  PMAC_DEV   *pDev = (PMAC_DEV *) base;
 
   ctlr                 = pDev->ctlr;
   dpramAsciiOut        = pmacRamAddr(ctlr,0x0EA0);
@@ -368,38 +424,50 @@ static int pmacWriteAsc( PMAC_DEV *pDev, char *buffer, int nBytes )
 #ifdef TRANSACTION_LOCK
   epicsEventWaitWithTimeout( transactionLock, 0.3 );
 #endif
+  if( PMAC_DRIVER_DEBUG )
+    printf( "pmacWriteAsc: nBytes=%d term=0x%x buf=[%.*s]\n", nBytes, buffer[nBytes-1], nBytes, buffer );
 
-  for( i=0; (i < nBytes) && (i < PMAC_BASE_ASC_REGS_OUT); i++ )
+  for( i=0; (i < nBytes); i++ )
   {
-    if( buffer[i] == '\r' )
+    if( totalWritten == 0 )
     {
-      /* Send command to PMAC */
+      /* Ensure pmac dpram out is ready */
+      int count = 0;
+      const double delay = epicsThreadSleepQuantum();
+
+      while( getReg( *dpramAsciiOutControl ) != 0x0 )
+      {
+        epicsThreadSleep(delay);
+        count++;
+        if( count > 10 )
+          printf( "pmacWriteAsc: Stuck in while loop\n" );
+      }
+    }
+
+    if( buffer[i] == '\n') /* old tpmac pmacController.cpp used to use \r */
+    {
+      /* Send command to PMAC (replacing end of line char with a null char) */
+      //printf( "pmacWriteAsc: Send command\n" );
       setReg( dpramAsciiOut[totalWritten], (char) 0 );
       setReg( *dpramAsciiOutControl, (char) 1 );
       totalWritten = 0;
     }
     else
     {
-      if( totalWritten == 0 )
-      {
-        /* Line termination just sent - ensure PMAC is ready */
-        int count = 0;
-        const double delay = epicsThreadSleepQuantum();
-
-        while( getReg( *dpramAsciiOutControl ) != 0x0 )
-        {
-          epicsThreadSleep(delay);
-          count++;
-          if( count > 10 )
-            printf( "pmacWriteAsc: Stuck in while loop\n" );
-        }
-      }
       setReg( dpramAsciiOut[totalWritten], buffer[i] );
       totalWritten++;
+      if (totalWritten==PMAC_BASE_ASC_REGS_OUT)
+      {
+        /* dpram buffer full so send it to the pmac */
+        setReg( *dpramAsciiOutControl, (char) 1 );
+        totalWritten = 0;
+      }
     }
     numWritten++;
   }
-  return(numWritten);
+  if (numWritten > 0)
+    rtems_termios_dequeue_characters(pDev->tty, numWritten);
+  return;
 }
 
 
@@ -409,58 +477,67 @@ static int pmacWriteAsc( PMAC_DEV *pDev, char *buffer, int nBytes )
                       Note: There is 1 interrupt per line of the response and
                       1 interrupt for the ACK at the end. */
 
-static void pmacAscReadMeISR( PMAC_DEV *pDev )
+static void pmacAscReadMeISR( rtems_termios_device_context *base )
 {
   int         i;
   int         ctlr;
-  int         pushOK;
+  rtems_status_code rt_stat;
   int         length;
   volatile epicsUInt16 *dpramAsciiInControl;
   PMAC_DPRAM  *dpramAsciiIn;
   union {epicsUInt16 S; char C[2];} control;
-  ctlr                = pDev->ctlr;
+  PMAC_DEV   *pPmacDev = (PMAC_DEV *) base;
+
+  ctlr                = pPmacDev->ctlr;
   dpramAsciiInControl = (volatile epicsUInt16 *) pmacRamAddr(ctlr, 0x0F40);
   dpramAsciiIn        = pmacRamAddr(ctlr, 0x0F44);
   control.S           = getReg (*dpramAsciiInControl);
 
   if (control.S == 0)
   {
-      if (pDev->polling == 0){
-        logMsg( "No response from PMAC in pmacAscInISR\n", 0,0,0,0,0,0 );
+      if (pPmacDev->polling == 0){
+        printk( "No response from PMAC in pmacAscReadMeISR\n" );
       }
       return;
   }
-  if (control.C[1] == 0 )
+
+  /* Added check ctx_tty!=0 (i.e.device opened) before using enqueue */
+  /* Only fill the termios buffer if the device has been opened */
+  if (pPmacDev->tty)
   {
-    length = getReg( *pmacRamAddr(ctlr, 0x0F42) ) - 1;
-    for( i=0; i<length; i++ )
+    if (control.C[1] == 0 )
     {
+      //printk("pmacAscReadMeISR...1\n");
+      length = getReg( *pmacRamAddr(ctlr, 0x0F42) ) - 1;
+      for( i=0; i<length; i++ )
+      {
         char c = getReg(*dpramAsciiIn);
-        pushOK = epicsRingBytesPut( pDev->replyQ, &c, 1);
-        if( !pushOK ) logMsg("PMAC reply ring buffer full\n", 0,0,0,0,0,0);
+        rt_stat = rtems_termios_enqueue_raw_characters(pPmacDev->tty, &c, 1);
+        if( rt_stat != RTEMS_SUCCESSFUL ) printk("PMAC termios buffer full\n");
+        //printk("PMAC rx char 0x%x\n",c);
         dpramAsciiIn++;
+      }
+      rt_stat = rtems_termios_enqueue_raw_characters(pPmacDev->tty, &(control.C[0]), 1);
+      if( rt_stat != RTEMS_SUCCESSFUL ) printk("PMAC reply termios buffer full\n");
+      //printk("PMAC reply char 0x%x\n",control.C[0]);
     }
-    pushOK = epicsRingBytesPut( pDev->replyQ, &(control.C[0]), 1);
-    if( !pushOK ) logMsg("PMAC reply ring buffer full\n", 0,0,0,0,0,0);
+    else
+    {
+      /* Build a "ERRnnn" string from the BCD error code in dpramAsciiInControl */
+      char response[]={PMAC_TERM_BELL,'E','R','R','0','0','0',PMAC_TERM_CR,PMAC_TERM_ACK};
+
+      /* Convert the BCD encoded error number to its ASCII equivalent */
+      response[4] += ((control.C[1])       & 0xF );
+      response[5] += ((control.C[0] >> 4 ) & 0xF );
+      response[6] += ((control.C[0] )      & 0xF );
+      printk("PMAC err reply %s\n",response);
+
+      /* Push the data the onto the ring buffer */
+      rt_stat = rtems_termios_enqueue_raw_characters(pPmacDev->tty, response, sizeof(response) );
+      if( rt_stat != RTEMS_SUCCESSFUL ) printk("PMAC reply ring buffer full\n");
+    }
   }
-  else
-  {
-    /* Build a "ERRnnn" string from the BCD error code in dpramAsciiInControl */
-    char response[]={PMAC_TERM_BELL,'E','R','R','0','0','0',PMAC_TERM_CR,PMAC_TERM_ACK};
-
-    /* Convert the BCD encoded error number to its ASCII equivalent */
-    response[4] += ((control.C[1])       & 0xF );
-    response[5] += ((control.C[0] >> 4 ) & 0xF );
-    response[6] += ((control.C[0] )      & 0xF );
-
-    /* Push the data the onto the ring buffer */
-    pushOK = epicsRingBytesPut( pDev->replyQ, response, sizeof(response) );
-    if( !pushOK )
-      logMsg("PMAC reply ring buffer full\n", 0, 0, 0, 0, 0, 0);
-  }
-
   setReg( *dpramAsciiInControl, (epicsUInt16) 0 );
-  epicsEventSignal( pDev->ioReadmeId );
 
 #ifdef TRANSACTION_LOCK
   if ( control.C[0] == PMAC_TERM_ACK ) epicsEventSignal( transactionLock );
@@ -470,7 +547,7 @@ static void pmacAscReadMeISR( PMAC_DEV *pDev )
 }
 
 
-static int pmacWriteMbx( PMAC_DEV *pPmacDev, char *buffer, int nBytes )
+static void pmacWriteMbx( rtems_termios_device_context *base, const char *buffer, size_t nBytes)
 {
   int       i;
   int       j;
@@ -478,11 +555,15 @@ static int pmacWriteMbx( PMAC_DEV *pPmacDev, char *buffer, int nBytes )
   int       ctlr;
   char      firstChar, c;
   PMAC_CTLR *pPmacCtlr;
+  PMAC_DEV   *pPmacDev = (PMAC_DEV *) base;
 
   j          = 0;
   numWritten = 0;
   ctlr       = pPmacDev->ctlr;
   pPmacCtlr  = &pmacVmeCtlr[ctlr];
+
+  if( PMAC_DRIVER_DEBUG )
+    printf( "pmacWriteMbx: nBytes=%d term=0x%x buffer=[%.*s]\n", nBytes, buffer[nBytes-1], nBytes, buffer );
 
   while( numWritten < nBytes )
   {
@@ -493,8 +574,15 @@ static int pmacWriteMbx( PMAC_DEV *pPmacDev, char *buffer, int nBytes )
         printf("pmacWriteMbx: 0x%x (%d)\n", buffer[j+i], i);
       pPmacCtlr->pBase->mailbox.MB[i+1].data = buffer[j+i];
       numWritten++;
-      if( buffer[j+i] == PMAC_TERM_CR )
+      /* lowLevelPortConnect in pmacMessageBroker.cpp specifies '\n' for end of command line which works for
+         dpram but pmac mailbox seems to need '\r' so we change \n to \r before sending it to the pmac.
+         (At some point in the past pmacMessageBroker must have specified \r...) */
+      //if( buffer[j+i] == PMAC_TERM_CR )
+      if( buffer[j+i] == '\n' )
+      {
+        pPmacCtlr->pBase->mailbox.MB[i+1].data = PMAC_TERM_CR;
         break;
+      }
     }
 
     if( PMAC_DRIVER_DEBUG )
@@ -502,48 +590,68 @@ static int pmacWriteMbx( PMAC_DEV *pPmacDev, char *buffer, int nBytes )
     pPmacCtlr->pBase->mailbox.MB[0].data = firstChar;
     numWritten++;
 
+    /* record number of characters written to the mailbox */
+    pPmacDev->lastsent = (i<PMAC_BASE_MBX_REGS_OUT) ? i+1 : i;
+
     /* Now, enable the response, and read the data back to ensure it is written */
     pPmacCtlr->pBase->mailbox.MB[1].data = 0;
     c = pPmacCtlr->pBase->mailbox.MB[1].data;
 
+    /* wait for pmacMbxReceivedISR to confirm reception of command */
     epicsEventWait( pPmacDev->ioReceivedId );
+
+    rtems_termios_dequeue_characters(pPmacDev->tty, pPmacDev->lastsent);
+
+    if( PMAC_DRIVER_DEBUG )
+      printf( "pmacWriteMbx: dequeued\n");
+
     j += PMAC_BASE_MBX_REGS_OUT;
   }
 
-  return( numWritten );
+  return;
 }
 
 
 /* We get this interrupt when PMAC has filled the Mailbox registers */
 /* and we can then read the data                                    */
-
-static void pmacMbxReadMeISR( PMAC_DEV *pPmacDev )
+/* 4/9/24: THIS FUNCTION NEEDS DEBUGGING 
+   Currently VME Mailbox transmit to pmac works but the receive does not.
+   The interrupt does call this function but the #ifdef code block below crashes */
+static void pmacMbxReadMeISR( rtems_termios_device_context *base )
 {
+#ifdef DISABLE_MBX
+  printk("Inside pmacMbxReadMeISR...\n");
+
+#else
   int       i;
   int       ctlr;
-  int       pushOK;
-  int       sendMore;
+  //int       pushOK;
+  rtems_status_code rt_stat;
   char	    c;
   PMAC_CTLR *pPmacCtlr;
   int        terminator=0;
+  PMAC_DEV   *pPmacDev = (PMAC_DEV *) base;
 
   /* logMsg("Inside pmacMbxReadMeISR...\n", 0, 0, 0, 0, 0, 0); */
-
+printk("Inside pmacMbxReadMeISR...\n");
   ctlr      = pPmacDev->ctlr;
   pPmacCtlr = &pmacVmeCtlr[ctlr];
-  sendMore  = 1;
 
-  for( i = 0; i < PMAC_BASE_MBX_REGS_IN && !terminator; i++ )
+  /* Added check ctx_tty!=0 (i.e.device opened) before using enqueue */
+  /* Only fill the termios buffer if the device has been opened */
+  if (pPmacDev->tty)
   {
-    c      = pPmacCtlr->pBase->mailbox.MB[i].data;
-
-    pushOK = epicsRingBytesPut( pPmacDev->replyQ, &c, 1);
-    if( !pushOK )
-      logMsg("PMAC reply ring buffer full\n", 0, 0, 0, 0, 0, 0);
-
-    terminator = ( (c == PMAC_TERM_CR) || (c == PMAC_TERM_ACK) || (c == PMAC_TERM_BELL) );
-    if (terminator)
+    for( i = 0; i < PMAC_BASE_MBX_REGS_IN && !terminator; i++ )
     {
+      c = pPmacCtlr->pBase->mailbox.MB[i].data;
+printk("PMAC reply char 0x%x\n",c);
+
+      rt_stat = rtems_termios_enqueue_raw_characters(pPmacDev->tty, &c, 1);
+      if( rt_stat != RTEMS_SUCCESSFUL ) printk("PMAC reply termios buffer full\n");
+
+      terminator = ( (c == PMAC_TERM_CR) || (c == PMAC_TERM_ACK) || (c == PMAC_TERM_BELL) );
+      if (terminator)
+      {
         static int hadBell = 0;
         int bell = (c == PMAC_TERM_BELL);
 
@@ -551,38 +659,44 @@ static void pmacMbxReadMeISR( PMAC_DEV *pPmacDev )
         if (hadBell) 
         {
             c = PMAC_TERM_ACK;
-            pushOK = epicsRingBytesPut( pPmacDev->replyQ, &c, 1);
-            if( !pushOK )
-                logMsg("PMAC reply ring buffer full\n", 0, 0, 0, 0, 0, 0);
+            rt_stat = rtems_termios_enqueue_raw_characters(pPmacDev->tty, &c, 1);
+            if( rt_stat != RTEMS_SUCCESSFUL )  printk("PMAC reply termios buffer full\n");
         }
         hadBell = bell;
+      }
     }
-  }
 
-  /* Write to mailbox register number 1 if there is more data in the response
+    /* Write to mailbox register number 1 if there is more data in the response
      to this command. According to the manual we should be able to do this
      after receiving any response to pre-enable the next response, but in
      reality, this doesn't always work */
 
-  if (c != PMAC_TERM_ACK) 
-  {
-      pPmacCtlr->pBase->mailbox.MB[1].data = 0;
-      c = pPmacCtlr->pBase->mailbox.MB[1].data;
+    if (c != PMAC_TERM_ACK) 
+    {
+        pPmacCtlr->pBase->mailbox.MB[1].data = 0;
+        c = pPmacCtlr->pBase->mailbox.MB[1].data;
+    }
   }
-  epicsEventSignal( pPmacDev->ioReadmeId );
-
+#endif /* DISABLE_MBX */
   return;
 }
 
 
 /* We get this interrupt when PMAC has successfully received the data */
 /* we have placed in the Mailbox registers                            */
-
-static void pmacMbxReceivedISR( PMAC_DEV *pPmacDev )
+static void pmacMbxReceivedISR( rtems_termios_device_context *base )
 {
+  PMAC_DEV   *pPmacDev = (PMAC_DEV *) base;
+
   /* logMsg("Inside pmacMbxReceivedISR...\n", 0, 0, 0, 0, 0, 0); */
+//printk("Inside pmacMbxReceivedISR...base=%#010lx base2=%#010lx, n=%d\n",base, base2, pPmacDev->lastsent);
+
+  /* dequeue the characters that have just been received by the pmac */
+  /* moved this to pmacWriteMbx because it causes a crash here - it shouldnt - not sure why */
+  //if (pPmacDev->tty) rtems_termios_dequeue_characters(pPmacDev->tty, pPmacDev->lastsent);
 
   epicsEventSignal( pPmacDev->ioReceivedId );
+//printk("Signalled pmacMbxReceivedISR...\n");
   return;
 }
 
@@ -660,31 +774,46 @@ int pmacAsynConfig( char * mbx_prefix, char * asc_prefix, unsigned int priority,
 
     pmacDrv(polling);
 
-    if( !installedAsynMbx && mbx_prefix )
+#ifdef DISABLE_MBX
+    /* Mailbox (mbx_prefix) communication interrupts currently cause a crash so mailbox comms is disabled here.*/
+    /* Note DPRAM (asc_prefix) comms is preferable, its faster using a much bigger buffer compared to a mailbox.*/
+    if( strlen(mbx_prefix)>0 )
     {
-        /* Add a DPRAM ASCII device for every configured card */
+        printf( "VME mailbox communication (%s) not debugged.\n", mbx_prefix );
+        printf( "Use a DPRAM ASCII port instead (e.g. pmacAsynConfig( \"\", \"PMAC_S\", 0, 0) )\n" );
+        cantProceed("pmacAsynConfig: MBX comms disabled.");
+    }
+#endif /* DISABLE_MBX */
+
+    if( !installedAsynMbx && strlen(mbx_prefix)>0 )
+    {
+        /* Add a MBX ASCII device for every configured card */
         for( i=0; i < PMAC_MAX_CTLRS; i++ )
         {
             if( pmacVmeCtlr[i].configured )
             {
-                sprintf( devName,  "/dev/pmac/%d/mbx", pmacVmeCtlr[i].ctlr );
+                //sprintf( devName,  "/dev/pmac/%d/mbx", pmacVmeCtlr[i].ctlr );
+                sprintf( devName,  "/dev/pmacmbx%d", pmacVmeCtlr[i].ctlr );
                 sprintf( asynName, "%s%d", mbx_prefix, pmacVmeCtlr[i].ctlr );
                 drvAsynSerialPortConfigure( asynName, devName, priority, 0, 0 );
+                printf("Adding MBX ASCII port %s\n",asynName);
             }
         }
         installedAsynMbx = 1;
     }
 
-    if( !installedAsynAsc && asc_prefix )
+    if( !installedAsynAsc && strlen(asc_prefix)>0 )
     {
         /* Add a DPRAM ASCII device for every configured card */
         for( i=0; i < PMAC_MAX_CTLRS; i++ )
         {
             if( pmacVmeCtlr[i].configured )
             {
-                sprintf( devName,  "/dev/pmac/%d/asc", pmacVmeCtlr[i].ctlr );
+                //sprintf( devName,  "/dev/pmac/%d/asc", pmacVmeCtlr[i].ctlr );
+                sprintf( devName,  "/dev/pmacasc%d", pmacVmeCtlr[i].ctlr );
                 sprintf( asynName, "%s%d", asc_prefix, pmacVmeCtlr[i].ctlr );
                 drvAsynSerialPortConfigure( asynName, devName, priority, 0, 0 );
+                printf("Adding DPRAM ASCII port %s\n",asynName);
             }
         }
         installedAsynAsc = 1;

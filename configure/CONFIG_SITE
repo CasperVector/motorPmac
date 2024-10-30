@@ -14,12 +14,18 @@
 # Set CHECK_RELEASE to NO to disable checking completely.
 # Set CHECK_RELEASE to WARN to perform consistency checking but
 #   continue building anyway if conflicts are found.
-CHECK_RELEASE = YES
+CHECK_RELEASE = WARN
 
 # Set this when you only want to compile this application
 #   for a subset of the cross-compiled target architectures
 #   that Base is built for.
-#CROSS_COMPILER_TARGET_ARCHS = vxWorks-68040
+#CROSS_COMPILER_TARGET_ARCHS = RTEMS-beatnik
+
+ifeq (,$(findstring R3.14, $(EPICS_BASE)))
+  # If R3.14 is not in EPICS_BASE then build RTEMS support
+  # DLS support for RTEMS was added in epics 7
+  CROSS_COMPILER_TARGET_ARCHS = RTEMS-beatnik
+endif
 
 # To install files into a location other than $(TOP) define
 #   INSTALL_LOCATION here.

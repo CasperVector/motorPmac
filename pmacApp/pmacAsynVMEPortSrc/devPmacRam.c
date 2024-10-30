@@ -72,18 +72,12 @@ OWNED RIGHTS.
  * INCLUDES
  */
 
-/* VxWorks Includes */
-
-#include <vxWorks.h>
-#include <stdlib.h>	 /* Sergey */
-#include <types.h>
-#include <stdioLib.h>
-#include <string.h>
-#define __PROTOTYPE_5_0		/* Sergey */
-#include <logLib.h>	/* Sergey */
 
 /* EPICS Includes */
 
+#include <epicsStdlib.h>
+#include <epicsStdioRedirect.h>
+#include <string.h>
 #include <alarm.h>
 #include <cvtTable.h>
 #include <dbAccess.h>
@@ -93,8 +87,8 @@ OWNED RIGHTS.
 #include <dbAccess.h>
 #include <dbScan.h>
 #include <link.h>
-#include <module_types.h>
 #include <callback.h>
+#include <errlog.h>
 
 #include <aiRecord.h>
 #include <aoRecord.h>
@@ -130,7 +124,7 @@ OWNED RIGHTS.
 #endif
 
 #if PMAC_DIAGNOSTICS
-#define PMAC_MESSAGE	logMsg
+#define PMAC_MESSAGE	errlogPrintf
 #define PMAC_DEBUG(level,code)       { if (devPmacRamDebug >= (level)) { code } }
 #define PMAC_TRACE(level,code)       { if ( (pRec->tpro >= (level)) || (devPmacRamDebug == (level)) ) { code } }
 #else
@@ -469,8 +463,8 @@ void devPmacRamUpdated (void *pvoid) {
   PMAC_RAM_IO	*pRamIo = pDpvt->pRamIo;
 
   PMAC_DEBUG (7,
-    PMAC_MESSAGE ("%s: pDpvt=%010lx\n", MyName, pDpvt,0,0,0,0);
-    PMAC_MESSAGE ("%s: RamIo valLong=%#010x valDouble=%lf\n", MyName, pRamIo->valLong, pRamIo->valDouble,0,0,0);
+    PMAC_MESSAGE ("%s: pDpvt=%p\n", MyName, pDpvt,0,0,0,0);
+    PMAC_MESSAGE ("%s: RamIo valLong=%#010lx valDouble=%lf\n", MyName, pRamIo->valLong, pRamIo->valDouble,0,0,0);
   )
 
   if ((pRamIo->valLong != pDpvt->dpramData.ramLong)
@@ -1072,10 +1066,13 @@ LOCAL long devPmacRamEvent_read (struct eventRecord *pRec) {
 
   pDpvt = (PMAC_RAM_DPVT *) pRec->dpvt;
 
+  /*TODO FIX THIS epics 7 event record val is a char[ ] not an event number - what to do??? */ 
+  /* for the moment we will just skip this and return an error
   pRec->val = (short) (0x0000ffff & pDpvt->dpramData.ramLong);
   pRec->udf = FALSE;
 
-  return(0);
+  return(0); */
+  return(1);
 }
 
 /*******************************************************************************

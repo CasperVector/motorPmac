@@ -76,23 +76,18 @@ DEVELOPMENT CENTER AT ARGONNE NATIONAL LABORATORY (630-252-2000).
  * INCLUDES
  */
 
-/* VxWorks Includes */
 
-#include	<vxWorks.h>
-#include	<vxLib.h>
-#include	<stdioLib.h>
-#include	<sysLib.h>
-#include	<taskLib.h>
-#include	<iv.h>
-#include	<math.h>
-#include	<rngLib.h>
-#include	<string.h>	/* Sergey */
-#define __PROTOTYPE_5_0		/* Sergey */
-#include	<logLib.h>	/* Sergey */
-#include	<semLib.h>	/* semGive() */
-
+#define ERROR (-1)
+#define FOREVER while(1)
 
 /* EPICS Includes */
+
+#include	<epicsStdlib.h>
+#include	<epicsThread.h>	
+#include	<string.h>	/* Sergey */
+#include	<math.h>
+#include	<epicsRingBytes.h>
+#include	<epicsEvent.h>	
 
 #include	<dbDefs.h>
 #include	<dbTest.h>
@@ -124,7 +119,7 @@ DEVELOPMENT CENTER AT ARGONNE NATIONAL LABORATORY (630-252-2000).
 
 #define PMAC_DIAGNOSTICS TRUE
 #define PMAC_PRIVATE FALSE
-#define vxTicksPerSecond (sysClkRateGet())	/*clock ticks per second*/
+#define vxTicksPerSecond (1.0/epicsThreadSleepQuantum())	/*clock ticks per second*/
 
 #if PMAC_PRIVATE
 #define PMAC_LOCAL LOCAL
@@ -133,7 +128,7 @@ DEVELOPMENT CENTER AT ARGONNE NATIONAL LABORATORY (630-252-2000).
 #endif
 
 #if PMAC_DIAGNOSTICS
-#define PMAC_MESSAGE	logMsg
+#define PMAC_MESSAGE errlogPrintf
 #define PMAC_DEBUG(level,code)	{ if (drvPmacDebug >= (level)) { code } }
 #else
 #define PMAC_DEBUG(level,code)      ;
@@ -160,25 +155,25 @@ DEVELOPMENT CENTER AT ARGONNE NATIONAL LABORATORY (630-252-2000).
 
 #define PMAC_MBX_SCAN		"pmacMbx"
 #define PMAC_MBX_PRI		(45)
-#define PMAC_MBX_OPT		(VX_FP_TASK)
+//#define PMAC_MBX_OPT		(VX_FP_TASK)
 #define PMAC_MBX_STACK		(8000)
 
 #define PMAC_MTR_SCAN		"pmacMtr"
 #define PMAC_MTR_PRI		(45)		
 #define PMAC_MTR_RATE		(vxTicksPerSecond/60)
-#define PMAC_MTR_OPT		(VX_FP_TASK)
+//#define PMAC_MTR_OPT		(VX_FP_TASK)
 #define PMAC_MTR_STACK		(8000)
 
 #define PMAC_BKG_SCAN		"pmacBkg"
 #define PMAC_BKG_PRI		(45)
 #define PMAC_BKG_RATE		(vxTicksPerSecond/10)
-#define PMAC_BKG_OPT		(VX_FP_TASK)
+//#define PMAC_BKG_OPT		(VX_FP_TASK)
 #define PMAC_BKG_STACK		(8000)
 
 #define PMAC_VAR_SCAN		"pmacVar"
 #define PMAC_VAR_PRI		(45)
 #define PMAC_VAR_RATE		(vxTicksPerSecond/10)
-#define PMAC_VAR_OPT		(VX_FP_TASK)
+//#define PMAC_VAR_OPT		(VX_FP_TASK)
 #define PMAC_VAR_STACK		(8000)
 
 #define PMAC_DPRAM_MTR		1
@@ -225,18 +220,18 @@ typedef struct {  /* PMAC_CARD */
   int		  enabledBkg;
   int		  enabledVar;
 
-  SEM_ID	  scanMbxSem;
-  SEM_ID	  mbxMutex;
-  RING_ID	  MbxBuf;
+  epicsEventId scanMbxSem;
+  epicsEventId mbxMutex;
+  epicsRingBytesId MbxBuf;
 
   volatile int    scanMtrRate;
   volatile int    scanBkgRate;
   volatile int    scanVarRate;
 
-  int		  scanMbxTaskId;
-  int		  scanMtrTaskId;
-  int		  scanBkgTaskId;
-  int		  scanVarTaskId;
+  epicsThreadId		  scanMbxTaskId;
+  epicsThreadId		  scanMtrTaskId;
+  epicsThreadId		  scanBkgTaskId;
+  epicsThreadId		  scanVarTaskId;
 
   char  	  scanMbxTaskName[PMAC_TASKNAME_LEN];
   char  	  scanMtrTaskName[PMAC_TASKNAME_LEN];
@@ -658,7 +653,7 @@ long drvPmacDpramRequest (short card, short pmacAdrOfs, char *pmacAdrSpec, void	
     pMtrIo->pFunc = pFunc;
     pMtrIo->pParm = pParm;
 
-    PMAC_DEBUG (1, PMAC_MESSAGE ("%s: Mtr -- index %d memType %d hostOfs %x pAddress %#010lx\n",
+    PMAC_DEBUG (1, PMAC_MESSAGE ("%s: Mtr -- index %d memType %d hostOfs %x pAddress %p\n",
       MyName, i, memType, hostOfs, pMtrIo->pAddress, 0);)
 
     pCard->numMtrIo++;
@@ -690,7 +685,7 @@ long drvPmacDpramRequest (short card, short pmacAdrOfs, char *pmacAdrSpec, void	
     pBkgIo->pFunc = pFunc;
     pBkgIo->pParm = pParm;
 
-    PMAC_DEBUG (1, PMAC_MESSAGE ("%s: Bkg -- index %d memType %d hostOfs %x pAddress %#010lx\n",
+    PMAC_DEBUG (1, PMAC_MESSAGE ("%s: Bkg -- index %d memType %d hostOfs %x pAddress %p\n",
       MyName, i, memType, hostOfs, pBkgIo->pAddress, 0);)
 
     pCard->numBkgIo++;
@@ -737,7 +732,7 @@ long drvPmacDpramRequest (short card, short pmacAdrOfs, char *pmacAdrSpec, void	
   
 
     PMAC_DEBUG (1,
-      PMAC_MESSAGE ("%s: timVB -- index %d memType %d hostOfs %x pAddress %#010lx\n",
+      PMAC_MESSAGE ("%s: timVB -- index %d memType %d hostOfs %x pAddress %p\n",
   	MyName, i, ptimVB->memType, ptimVB->hostOfs, ptimVB->pAddress,0);
     )
 
@@ -769,7 +764,7 @@ long drvPmacDpramRequest (short card, short pmacAdrOfs, char *pmacAdrSpec, void	
     pOpnIo->pParm = pParm;
 
     PMAC_DEBUG (1,
-      PMAC_MESSAGE ("%s: Opn -- index %d memType %d hostOfs %x pAddress %#010lx\n",
+      PMAC_MESSAGE ("%s: Opn -- index %d memType %d hostOfs %x pAddress %p\n",
   	MyName, i, memType, hostOfs, pOpnIo->pAddress, 0);
     )
 
@@ -851,7 +846,7 @@ long drvPmacVarSetup (int card) {
     status = pmacRamPut16 (pmacRamAddr (card, configOfs + 2), configFormat);
 
     PMAC_DEBUG (1,
-      PMAC_MESSAGE ("%s: configFormat %d memType %d hostOfs %x pAddress %#010lx\n",
+      PMAC_MESSAGE ("%s: configFormat %ld memType %d hostOfs %x pAddress %p\n",
     	MyName, configFormat, pVarIo->memType, pVarIo->hostOfs, pVarIo->pAddress, 0);
     )
 
@@ -930,7 +925,7 @@ long drvPmacBkgRead (int card) {
   /* Check for PMAC Data Ready */
   status = pmacRamGet16 (pmacRamAddr (card, 0x067A), &lval);
 
-  PMAC_DEBUG (5, PMAC_MESSAGE ("%s: PMAC status 0x%x\n", MyName, lval, 0, 0, 0, 0);)
+  PMAC_DEBUG (5, PMAC_MESSAGE ("%s: PMAC status 0x%lx\n", MyName, lval, 0, 0, 0, 0);)
 
   /* If No Data Ready Then Return Without Reading */
   if ((lval & 0x8000) == 0) return 0;
@@ -969,7 +964,7 @@ long drvPmacVarRead (int card) {
   /* Check For PMAC Data Ready */
   status = pmacRamGet16 (pmacRamAddr (card, 0x1044), &lval);
 
-  PMAC_DEBUG (5, PMAC_MESSAGE ("%s: PMAC status 0x%x\n", MyName, lval, 0, 0, 0, 0);)
+  PMAC_DEBUG (5, PMAC_MESSAGE ("%s: PMAC status 0x%lx\n", MyName, lval, 0, 0, 0, 0);)
 
   /* If No Data Ready Then Return Without Reading */
   if ((lval & 0x0001) != 1) return 0;
@@ -1216,17 +1211,17 @@ void drvPmacMbxScan (PMAC_MBX_IO *pMbxIo) {
   PMAC_CARD       *pCard = &pmacCards[pMbxIo->card];
   struct dbCommon *pRec;
   if (pCard->configured == TRUE) {
-    semTake (pCard->mbxMutex, WAIT_FOREVER);
-    if (rngBufPut(pCard->MbxBuf,(void *)&pMbxIo,sizeof(pMbxIo)) != sizeof(pMbxIo)) {
+    epicsEventMustWait(pCard->mbxMutex);
+    if (epicsRingBytesPut(pCard->MbxBuf,(void *)&pMbxIo,sizeof(pMbxIo)) != sizeof(pMbxIo)) {
       errMessage (0,"drvPmacMbxScan: rngBufPut overflow.");
       callbackGetUser (pRec, &pMbxIo->callback);
       pRec->pact = FALSE;
     } else {
       PMAC_DEBUG (9, PMAC_MESSAGE ("%s: rngBufPut completed.\n", MyName,0,0,0,0,0);)
-      semGive (pCard->scanMbxSem);
+      epicsEventSignal(pCard->scanMbxSem);
     }
 
-    semGive (pCard->mbxMutex);
+    epicsEventSignal(pCard->mbxMutex);
     return;
   } else {
     /*printf ("PMAC card number %d is not configured!\n", pMbxIo->card);*/
@@ -1245,23 +1240,24 @@ PMAC_LOCAL void drvPmacMbxScanInit (int card) {
 
   PMAC_CARD *	  pCard = &pmacCards [card];
 
-  pCard->MbxBuf = rngCreate(sizeof(void *) * PMAC_MBX_QUEUE_SIZE);
+  pCard->MbxBuf = epicsRingBytesCreate(sizeof(void *) * PMAC_MBX_QUEUE_SIZE);
 
   if (pCard->MbxBuf == NULL) {
-    errMessage (0, "drvPmacMbxScanInit: rngCreate failed");
+    errMessage (0, "drvPmacMbxScanInit: epicsRingBytesCreate failed");
     exit(1);
   }
 
-  pCard->mbxMutex = semBCreate(SEM_Q_PRIORITY,SEM_FULL);
-  pCard->scanMbxSem = semBCreate(SEM_Q_FIFO,SEM_EMPTY);
+  pCard->mbxMutex = epicsEventMustCreate(epicsEventFull);
+  pCard->scanMbxSem = epicsEventMustCreate(epicsEventEmpty);
   if (pCard->scanMbxSem == NULL) {
-    errMessage (0, "drvPmacMbxScanInit: semBcreate failed.");
+    errMessage (0, "drvPmacMbxScanInit: epicsEventMustCreate failed.");
   } else {
     sprintf (pCard->scanMbxTaskName, "%s%d", PMAC_MBX_SCAN, pCard->card);
-    pCard->scanMbxTaskId = taskSpawn (pCard->scanMbxTaskName,
-  	  		    PMAC_MBX_PRI, PMAC_MBX_OPT, PMAC_MBX_STACK,
-  	  		    (FUNCPTR)mbxProcessTask,
-  	  		    pCard->card,0,0,0,0,0,0,0,0,0);
+    pCard->scanMbxTaskId = epicsThreadCreate (pCard->scanMbxTaskName,
+			    PMAC_MBX_PRI, PMAC_MBX_STACK,
+			    (EPICSTHREADFUNC)mbxProcessTask,
+			    (void*)pCard->card);
+
     taskwdInsert ((void*)pCard->scanMbxTaskId, NULL, 0L);
 
     /* epicsPrintf("***** %s: created queue size of: %d\n",
@@ -1291,16 +1287,17 @@ int mbxProcessTask (int card) {
     /*     to avoid repeated messages when we do not	 */
     /*     have a database record connected to the ASCII */
     /*     mailboxes					 */
-    if (semTake(pCard->scanMbxSem,WAIT_FOREVER) != OK) {
+    /*if (semTake(pCard->scanMbxSem,WAIT_FOREVER) != OK) {
   	    errMessage(0,"mbxProcessTask: semTake returned error.");
-    }
+    }*/
+    epicsEventMustWait(pCard->scanMbxSem);
 
-    semTake(pCard->mbxMutex, WAIT_FOREVER);
-    while (rngNBytes(pCard->MbxBuf) >= len) {
-      if (rngBufGet(pCard->MbxBuf,(void *)&pMbxIo,len) != len) {
-  	errMessage (0,"mbxProcessTask: rngBufGet returned error.");
+    epicsEventMustWait(pCard->mbxMutex);
+    while (epicsRingBytesUsedBytes(pCard->MbxBuf) >= len) {
+      if (epicsRingBytesGet(pCard->MbxBuf,(void *)&pMbxIo,len) != len) {
+	errMessage (0,"mbxProcessTask: epicsRingBytesGet returned error.");
       } else {
-  	semGive(pCard->mbxMutex);
+        epicsEventSignal(pCard->mbxMutex);
   	callbackGetUser (pRec, &pMbxIo->callback);
   	PMAC_DEBUG (6,
   	  PMAC_MESSAGE ("%s: rngBufGet completed.\n", MyName,0,0,0,0,0);
@@ -1320,19 +1317,19 @@ int mbxProcessTask (int card) {
   	    pCard->StrErr->nord = strlen (pCard->StrErr->bptr);
   	    pCard->StrErr->pact = TRUE;
 	    pCard->StrErr->putf = TRUE;
-	    (*(pCard->StrErr->rset->process)) ((struct rset*) pCard->StrErr);
+	    (*(pCard->StrErr->rset->process)) ((struct dbCommon*) pCard->StrErr);
 	    dbScanUnlock ((struct dbCommon *)pCard->StrErr);
   	  }	  
   	} else {
   	  PMAC_DEBUG (6, PMAC_MESSAGE ("%s: response=[%s]\n", MyName, pMbxIo->response,0,0,0,0);)
   	  dbScanLock (pRec); (*(pRec->rset->process))(pRec); dbScanUnlock (pRec);
   	}
-  	semTake(pCard->mbxMutex, WAIT_FOREVER);
+        epicsEventMustWait(pCard->mbxMutex);
 
       }
 
     }
-    semGive(pCard->mbxMutex);
+    epicsEventSignal(pCard->mbxMutex);
   }
 }
 
@@ -1347,7 +1344,7 @@ int mtrProcessTask (int card) {
   int       scanMtrRate = pCard->scanMtrRate;
 
   FOREVER {
-    taskDelay (scanMtrRate);
+    epicsThreadSleep(scanMtrRate*epicsThreadSleepQuantum());
     if (pCard->enabledMtr) drvPmacMtrRead (card);
   }
 }
@@ -1364,7 +1361,7 @@ PMAC_LOCAL void drvPmacMtrScanInit (int	card) {
   PMAC_CARD *pCard = &pmacCards [card];
 
   sprintf (pCard->scanMtrTaskName, "%s%d", PMAC_MTR_SCAN, pCard->card);
-  pCard->scanMtrTaskId = taskSpawn (pCard->scanMtrTaskName, PMAC_MTR_PRI, PMAC_MTR_OPT, PMAC_MTR_STACK, mtrProcessTask, pCard->card,0,0,0,0,0,0,0,0,0);
+  pCard->scanMtrTaskId = epicsThreadCreate (pCard->scanMtrTaskName, PMAC_MTR_PRI, PMAC_MTR_STACK, (EPICSTHREADFUNC)mtrProcessTask, (void*)pCard->card);
   taskwdInsert ((void*)pCard->scanMtrTaskId, NULL, NULL);
 
   return;
@@ -1382,7 +1379,7 @@ int bkgProcessTask (int card) {
 
   FOREVER {
     if (pCard->enabledBkg) drvPmacBkgRead (card);
-    taskDelay (scanBkgRate);
+    epicsThreadSleep(scanBkgRate*epicsThreadSleepQuantum());
   }
 }
 
@@ -1398,7 +1395,7 @@ PMAC_LOCAL void drvPmacBkgScanInit (int card) {
   PMAC_CARD *pCard = &pmacCards [card];
 
   sprintf (pCard->scanBkgTaskName, "%s%d", PMAC_BKG_SCAN, pCard->card);
-  pCard->scanBkgTaskId = taskSpawn (pCard->scanBkgTaskName, PMAC_BKG_PRI, PMAC_BKG_OPT, PMAC_BKG_STACK, bkgProcessTask, pCard->card,0,0,0,0,0,0,0,0,0);
+  pCard->scanBkgTaskId = epicsThreadCreate (pCard->scanBkgTaskName, PMAC_BKG_PRI, PMAC_BKG_STACK, (EPICSTHREADFUNC)bkgProcessTask, (void*)pCard->card);
   taskwdInsert ((void*)pCard->scanBkgTaskId, NULL, NULL);
 
   return;
@@ -1416,7 +1413,7 @@ int varProcessTask (int card) {
 
   FOREVER {
     if (pCard->enabledVar) drvPmacVarRead (pCard->card);
-    taskDelay (scanVarRate);
+    epicsThreadSleep(scanVarRate*epicsThreadSleepQuantum());
   }
 }
 
@@ -1434,7 +1431,7 @@ PMAC_LOCAL void drvPmacVarScanInit (int card) {
   status = drvPmacVarSetup (card);
 
   sprintf (pCard->scanVarTaskName, "%s%d", PMAC_VAR_SCAN, pCard->card);
-  pCard->scanVarTaskId = taskSpawn (pCard->scanVarTaskName, PMAC_VAR_PRI, PMAC_VAR_OPT, PMAC_VAR_STACK, varProcessTask, card,0,0,0,0,0,0,0,0,0);
+  pCard->scanVarTaskId = epicsThreadCreate (pCard->scanVarTaskName, PMAC_VAR_PRI, PMAC_VAR_STACK, (EPICSTHREADFUNC)varProcessTask, (void*)pCard->card);
   taskwdInsert ((void*)pCard->scanVarTaskId, NULL, NULL);
 
   return;

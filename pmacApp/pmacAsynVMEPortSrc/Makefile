@@ -5,8 +5,10 @@ include $(TOP)/configure/CONFIG
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
 #==================================================
 USR_CFLAGS += -DSTATUS_RECORD
+USR_CFLAGS += -DUSE_TYPED_RSET
+USR_CFLAGS += -Wno-format-extra-args
 # build a support library
-OBJLIB_vxWorks += pmac
+OBJLIB_RTEMS += pmac
 
 # statusRecord.h will be created from statusRecord.dbd
 DBDINC += statusRecord
@@ -32,9 +34,10 @@ OBJLIB_SRCS += statusRecord.c
 OBJLIB_SRCS += devStatusSoft.c
 OBJLIB_SRCS += tsubRecord.c
 
-LIBRARY_vxWorks += pmacIoc
+LIBRARY_RTEMS += pmacIoc
 
-pmacIoc_SRCS += $(OBJLIB_SRCS)
+pmacIoc_SRCS_RTEMS += $(OBJLIB_SRCS)
+
 
 include $(TOP)/configure/RULES
 #----------------------------------------
