@@ -51,13 +51,9 @@
 
 #define VERSION 1.1
 
-/* VxWorks includes */
-#ifdef vxWorks
-#include        <vxWorks.h>
-#include        <lstLib.h>
-#endif
-#include        <stdlib.h>
-#include        <stdio.h>
+/* includes */
+#include <epicsStdlib.h>
+#include <epicsStdioRedirect.h>
 #include        <string.h>
 
 
@@ -130,7 +126,7 @@ struct statusdset { /* status input dset */
 	DEVSUPFUN	get_ioint_info;
 	DEVSUPFUN	read_status; /*returns: (-1,0)=>(failure,success)*/
 };
-static void alarm();
+static void setAlarm();
 static void monitor();
 static long readValue();
 static void decodeBits();
@@ -211,7 +207,7 @@ static long process(pstatus)
 	epicsTimeGetCurrent (&pstatus->time);
 
 	/* check for alarms */
-	alarm(pstatus);
+	setAlarm(pstatus);
 	/* check event list */
 	monitor(pstatus);
 	/* decode the bits */
@@ -286,7 +282,7 @@ static long get_alarm_double(paddr,pad)
     return(0);
 }
 
-static void alarm(pstatus)
+static void setAlarm(pstatus)
     struct statusRecord	*pstatus;
 {
 	double		val;

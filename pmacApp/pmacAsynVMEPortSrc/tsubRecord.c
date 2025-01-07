@@ -48,15 +48,14 @@
  * .16  02-05-95	jt	use update to r3.12
  */
 
-#include	<vxWorks.h>
-#include	<types.h>
-#include	<stdioLib.h>
-#include	<lstLib.h>
-#include	<string.h>
-#include	<symLib.h>
-#include	<sysSymTbl.h>   /* for sysSymTbl*/
-#include	<a_out.h>       /* for N_TEXT */
 
+//#include <epicsStdlib.h>
+//#include <epicsStdioRedirect.h>
+#include <ellLib.h>
+#include <devLib.h>
+#include "registryFunction.h"
+
+#include	<string.h>
 #include	<alarm.h>
 #include	<dbDefs.h>
 #include	<dbAccess.h>
@@ -64,7 +63,6 @@
 #include	<errMdef.h>
 #include	<recSup.h>
 #include	<dbEvent.h>		/* Sergey */
-#include	<epicsDynLink.h>	/* Sergey */
 
 #define GEN_SIZE_OFFSET
 #include	<tsubRecord.h>
@@ -72,13 +70,19 @@
 #include "recGbl.h"
 #include "epicsExport.h"
 
+typedef int STATUS;
+typedef STATUS (*FUNCPTR)();
+#define OK		0
+#define ERROR		(-1)
+
 /* Create RSET - Record Support Entry Table*/
 #define report NULL
 #define initialize NULL
 static long init_record();
 static long process();
 #define special NULL
-static long get_value();
+/* static long get_value(); DEPRECIATED */
+#define get_value NULL
 #define cvt_dbaddr NULL
 #define get_array_info NULL
 #define put_array_info NULL
@@ -129,10 +133,7 @@ static long init_record(ptsub,pass)
     int pass;
 {
     FUNCPTR	psubroutine;
-    char	sub_type;
-    char	temp[40];
     long	status;
-    STATUS	ret;
     struct link *plink;
     int i;
     double *pvalue;
@@ -147,40 +148,33 @@ static long init_record(ptsub,pass)
         if(plink->type==CONSTANT){
            recGblInitConstantLink(plink,DBF_DOUBLE,pvalue);
 	   /* *pvalue = plink->value.value; */
-	}
+	    }
     }
 
-    /* convert the initialization subroutine name  */
-    temp[0] = 0;			/* all global variables start with _ */
-    if (ptsub->inam[0] != '_'){
-	strcpy(temp,"_");
-    }
-    strcat(temp,ptsub->inam);
-	/* Sergey (symFindByName - > symFindByNameEPICS) */
-	ret = symFindByNameEPICS(sysSymTbl,temp,(void *)&ptsub->sadr,(void *)&sub_type);
-    if ((ret !=OK) || ((sub_type & N_TEXT) == 0)){
-	recGblRecordError(S_db_BadSub,(void *)ptsub,"recTsub(init_record)");
-	return(S_db_BadSub);
+    /* Call the user initialization routine if there is one */
+    if (ptsub->inam[0] != 0) {
+        ptsub->sadr = registryFunctionFind(ptsub->inam);
+        if (ptsub->sadr) {
+            psubroutine = (FUNCPTR)(ptsub->sadr);
+            status = psubroutine(ptsub,process);
+        } else {
+            recGblRecordError(S_db_BadSub, (void *)ptsub,
+                "tsubRecord::init_record - INAM subr not found");
+            return S_db_BadSub;
+        }
     }
 
-    /* invoke the initialization subroutine */
-    psubroutine = (FUNCPTR)(ptsub->sadr);
-    status = psubroutine(ptsub,process);
+    /* convert the subroutine name to an address */
+    if (ptsub->snam[0] != 0) {
+        ptsub->sadr = registryFunctionFind(ptsub->snam);
+        if (!ptsub->sadr) {
+            recGblRecordError(S_db_BadSub, (void *)ptsub,
+                "tsubRecord::init_record - SNAM subr not found");
+            ptsub->sadr = 0;
+            return S_db_BadSub;
+        }
+    }
 
-    /* convert the subroutine name to an address and type */
-    /* convert the processing subroutine name  */
-    temp[0] = 0;			/* all global variables start with _ */
-    if (ptsub->snam[0] != '_'){
-    	strcpy(temp,"_");
-    }
-    strcat(temp,ptsub->snam);
-	/* Sergey (symFindByName - > symFindByNameEPICS) */
-    ret = symFindByNameEPICS(sysSymTbl, temp, (void *)&ptsub->sadr, (void *)&sub_type);
-    if ((ret < 0) || ((sub_type & N_TEXT) == 0)){
-	recGblRecordError(S_db_BadSub,(void *)ptsub,"recTsub(init_record)");
-	return(S_db_BadSub);
-    }
-    ptsub->styp = sub_type;
     return(0);
 }
 
@@ -219,17 +213,18 @@ static long process(ptsub)
         return(status);
 }
 
-static long get_value(ptsub,pvdes)
-    struct tsubRecord		*ptsub;
-    struct valueDes	*pvdes;
-{
-    pvdes->field_type = DBF_DOUBLE;
-    pvdes->no_elements=1;
-/*  (double *)(pvdes->pvalue) = &ptsub->val; */
-/* Sergey */
-    pvdes->pvalue = (double *)(&ptsub->val);
-    return(0);
-}
+// DEPRECIATED
+//static long get_value(ptsub,pvdes)
+//    struct tsubRecord		*ptsub;
+//    struct valueDes	*pvdes;
+//{
+//    pvdes->field_type = DBF_DOUBLE;
+//    pvdes->no_elements=1;
+///*  (double *)(pvdes->pvalue) = &ptsub->val; */
+///* Sergey */
+//    pvdes->pvalue = (double *)(&ptsub->val);
+//    return(0);
+//}
 
 static long get_units(paddr,units)
     struct dbAddr *paddr;
@@ -344,25 +339,25 @@ static void set_alarms(ptsub)
 
 	/* alarm condition hihi */
 	if (hhsv && (val >= hihi || ((lalm==hihi) && (val >= hihi-hyst)))){
-	        if (recGblSetSevr(ptsub,HIHI_ALARM,ptsub->hhsv)) ptsub->lalm = hihi;
+		if (recGblSetSevr(ptsub,HIHI_ALARM,ptsub->hhsv)) ptsub->lalm = hihi;
 		return;
 	}
 
 	/* alarm condition lolo */
 	if (llsv && (val <= lolo || ((lalm==lolo) && (val <= lolo+hyst)))){
-	        if (recGblSetSevr(ptsub,LOLO_ALARM,ptsub->llsv)) ptsub->lalm = lolo;
+		if (recGblSetSevr(ptsub,LOLO_ALARM,ptsub->llsv)) ptsub->lalm = lolo;
 		return;
 	}
 
 	/* alarm condition high */
 	if (hsv && (val >= high || ((lalm==high) && (val >= high-hyst)))){
-	        if (recGblSetSevr(ptsub,HIGH_ALARM,ptsub->hsv)) ptsub->lalm = high;
+		if (recGblSetSevr(ptsub,HIGH_ALARM,ptsub->hsv)) ptsub->lalm = high;
 		return;
 	}
 
 	/* alarm condition low */
 	if (lsv && (val <= low || ((lalm==low) && (val <= low+hyst)))){
-	        if (recGblSetSevr(ptsub,LOW_ALARM,ptsub->lsv)) ptsub->lalm = low;
+		if (recGblSetSevr(ptsub,LOW_ALARM,ptsub->lsv)) ptsub->lalm = low;
 		return;
 	}
 
@@ -433,37 +428,37 @@ static void monitor(ptsub)
 static long fetch_values(ptsub)
 struct tsubRecord *ptsub;
 {
-        struct link     *plink; /* structure of the link field  */
-        double           *pvalue;
-        int             i;
-	long		status;
+	struct link *plink; /* structure of the link field  */
+	double *pvalue;
+	int i;
+	long status;
 
-        for(i=0, plink=&ptsub->inpa, pvalue=&ptsub->a;
-        		i<INP_ARG_MAX; i++, plink++, pvalue++)
-        {
+	for(i=0, plink=&ptsub->inpa, pvalue=&ptsub->a;
+		i<INP_ARG_MAX; i++, plink++, pvalue++)
+	{
 		status=dbGetLink(plink,DBR_DOUBLE, pvalue,0,0);
 		/*status=recGblGetFastLink(plink,(void *)ptsub,pvalue);*/
 		if (!RTN_SUCCESS(status)) return(-1);
-        }
-        return(0);
+	}
+	return(0);
 }
 
 static long push_values(ptsub)
 struct tsubRecord *ptsub;
 {
-        struct link     *plink; /* structure of the link field  */
-        double           *pvalue;
-        int             i;
-	long		status;
+	struct link *plink; /* structure of the link field  */
+	double *pvalue;
+	int i;
+	long status;
 
-        for(i=0, plink=&ptsub->outa, pvalue=&ptsub->oa;
-        		i<OUT_ARG_MAX; i++, plink++, pvalue++)
-        {
+	for(i=0, plink=&ptsub->outa, pvalue=&ptsub->oa;
+		i<OUT_ARG_MAX; i++, plink++, pvalue++)
+	{
 		status=dbPutLink(plink,DBR_DOUBLE, pvalue,0);
 		/*status=recGblPutFastLink(plink,(void *)ptsub,pvalue);*/
 		if (!RTN_SUCCESS(status)) return(-1);
-        }
-        return(0);
+	}
+	return(0);
 }
 
 static long do_sub(ptsub)

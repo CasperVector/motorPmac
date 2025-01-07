@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <epicsStdioRedirect.h>
 #include <string.h>
 #include "asynDriver.h"
 #include "asynOctetSyncIO.h"
@@ -6,6 +6,7 @@
 #include <iocsh.h>
 
 #define OK 0
+#define ERROR		(-1)
 
 #define TIMEOUT 6.0
 

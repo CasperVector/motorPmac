@@ -73,18 +73,12 @@ OWNED RIGHTS.
  * INCLUDES
  */
 
-/* VxWorks Includes */
-
-#include <vxWorks.h>
-#include <stdlib.h>	 /* Sergey */
-#include <types.h>
-#include <stdioLib.h>
-#include <string.h>
-#define __PROTOTYPE_5_0		/* Sergey */
-#include <logLib.h>	/* Sergey */
 
 /* EPICS Includes */
 
+#include <epicsStdlib.h>
+#include <epicsStdioRedirect.h>
+#include <string.h>
 #include <alarm.h>
 #include <cvtTable.h>
 #include <dbAccess.h>
@@ -93,9 +87,9 @@ OWNED RIGHTS.
 #include <devSup.h>
 #include <dbScan.h>
 #include <link.h>
-#include <module_types.h>
 #include <callback.h>
 #include <cantProceed.h>
+#include <errlog.h>
 
 #include <aiRecord.h>
 #include <biRecord.h>
@@ -116,7 +110,6 @@ OWNED RIGHTS.
 #endif
 
 /* local includes */
-
 #include <drvPmac.h>
 #include <pmacError.h>
 #include "recGbl.h"
@@ -135,7 +128,7 @@ OWNED RIGHTS.
 #endif
 
 #if PMAC_DIAGNOSTICS
-#define PMAC_MESSAGE	logMsg
+#define PMAC_MESSAGE errlogPrintf
 #define PMAC_DEBUG(level,code)       { if (devPmacMbxDebug >= (level)) { code } }
 #define PMAC_TRACE(level,code)       { if ( (pRec->tpro >= (level)) || (devPmacMbxDebug == (level)) ) { code } }
 #else
@@ -522,8 +515,8 @@ PMAC_MBX_DPVT * devPmacMbxDpvtInit
 	pDpvt->MbxIo.pRec = pRec;
 	pDpvt->MbxIo.card = card;
 	pDpvt->MbxIo.terminator = 0;
-	pDpvt->MbxIo.command[0] = (char) NULL;
-	pDpvt->MbxIo.response[0] = (char) NULL;
+	pDpvt->MbxIo.command[0] = '\0';
+	pDpvt->MbxIo.response[0] = '\0';
 
 	callbackSetCallback (devPmacMbxCallback, &pDpvt->MbxIo.callback);
 	callbackSetPriority (pRec->prio, &pDpvt->MbxIo.callback);
@@ -1725,7 +1718,7 @@ LOCAL void devPmacMbxCallback (CALLBACK *pCallback) {
   /* long         status = 0; */
 
   struct dbCommon *pRec;
-  struct rset     *pRset;
+  rset     *pRset;
 
   callbackGetUser (pRec, pCallback);
 
@@ -1733,7 +1726,7 @@ LOCAL void devPmacMbxCallback (CALLBACK *pCallback) {
 
   PMAC_TRACE (2, PMAC_MESSAGE ("%s: CALLBACK [%s].\n", MyName, pRec->name,0,0,0,0);)
 /*OAM*/
-  logMsg("%s: pRec = 0x%x, pRset = 0x%x \n", (int)MyName, (int)pRec,(int)pRset,0,0,0);
+  PMAC_MESSAGE("%s: pRec = 0x%x, pRset = 0x%x \n", MyName, (int)pRec,(int)pRset,0,0,0);
   dbScanLock (pRec);
   (*(pRset->process))(pRec);
   dbScanUnlock (pRec);

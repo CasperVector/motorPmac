@@ -76,18 +76,17 @@ DEVELOPMENT CENTER AT ARGONNE NATIONAL LABORATORY (630-252-2000).
  * INCLUDES
  */
 
-/* VxWorks Includes */
 
-#include <vxWorks.h>
-#include <vxLib.h>
-#include <sysLib.h>
-#include <taskLib.h>
-#include <iv.h>
+#include <epicsStdioRedirect.h>
+#include <epicsThread.h>	
+#include <string.h>	
 #include <math.h>
-#include <stdio.h>	 /* Sergey */
-#include <string.h>	 /* Sergey */
-#define __PROTOTYPE_5_0         /* Sergey */
-#include <logLib.h>      /* Sergey */
+#include <errlog.h>
+#include <epicsExport.h>
+#include <iocsh.h>
+
+#define ERROR (-1)
+#define OK (0)
 
 /* EPICS Includes */
 
@@ -110,11 +109,12 @@ DEVELOPMENT CENTER AT ARGONNE NATIONAL LABORATORY (630-252-2000).
 #endif
 
 #if PMAC_DIAGNOSTICS
-#define PMAC_MESSAGE	logMsg
+#define PMAC_MESSAGE errlogPrintf
 #define PMAC_DEBUG(level,code)       { if (pmacVmeDebug >= (level)) { code } }
 #else
 #define PMAC_DEBUG(level,code)      ;
 #endif
+
 
 #define NO_ERR_STATUS	(-1)
 
@@ -257,12 +257,15 @@ long pmacVmeConfig (int ctlrNumber, unsigned long addrBase, unsigned long addrDp
     pBlock = (char *) pPmacCtlr->pBase + 0x121;
 
     PMAC_DEBUG (1,
+      printf ("%s: pPmacCtlr->vmebusDpram = %#010lx\n", MyName, (long)pPmacCtlr->vmebusDpram);
+      printf ("%s: pPmacCtlr->pBase = %#010lx\n", MyName, (long)pPmacCtlr->pBase);
+      printf ("%s: pPmacCtlr->pDpramBase = %#010lx\n", MyName, (long)pPmacCtlr->pDpramBase);
       printf ("%s: Setting DPRAM mapping addr %#010lx val %d\n", MyName, (long)pBlock, block);
     )
   	    
     *pBlock = block;
   	    
-    status = vxMemProbe ( (char *) pPmacCtlr->pDpramBase, VX_READ, 2, (char*)&val);
+    status = devReadProbe (2, (void *) pPmacCtlr->pDpramBase, (void*)&val);
     if (status != OK) {
       printf ("%s: Failure probing for DPRAM address: 0x%x\n",
   	MyName, (int) pPmacCtlr->pDpramBase);
@@ -271,27 +274,31 @@ long pmacVmeConfig (int ctlrNumber, unsigned long addrBase, unsigned long addrDp
     pPmacCtlr->presentDpram = TRUE;
   }
 
-  pPmacCtlr->ioMbxReceiptSem = semBCreate (SEM_Q_FIFO, SEM_EMPTY);
+  pPmacCtlr->ioMbxReceiptSem = epicsEventMustCreate(epicsEventEmpty);
   if (pPmacCtlr->ioMbxReceiptSem == NULL) {
     status = S_dev_internal;
     printf ("%s: Failure creating ioMbxReceiptSem binary semaphore.\n", MyName);
     return status;
   }
 
-  pPmacCtlr->ioMbxReadmeSem = semBCreate (SEM_Q_FIFO, SEM_EMPTY);
+  pPmacCtlr->ioMbxReadmeSem = epicsEventMustCreate(epicsEventEmpty);
   if (pPmacCtlr->ioMbxReadmeSem == NULL) {
     status = S_dev_internal;
     printf ("%s: Failure creating ioMbxReadmeSem binary semaphore.\n", MyName);
     return status;
   }
 
-  pPmacCtlr->ioMbxLockSem = semBCreate (SEM_Q_FIFO, SEM_EMPTY);
+  pPmacCtlr->ioMbxLockSem = epicsEventMustCreate(epicsEventEmpty);
   if (pPmacCtlr->ioMbxLockSem == NULL) {
     status = S_dev_internal;
     printf ("%s: Failure creating ioMbxLockSem binary semaphore.\n", MyName);
     return status;
   }
-  		  
+/* Following interrupt routines are not used so we don't connect them, instead
+   we use the interrupt routines in pmacDriver.c (see pmacDrv() function).
+   (In RTEMS you can't just re-assign ISRs as you can in VxWorks without more
+   work to keep track of their IDs...) */
+/*
   PMAC_DEBUG (1,
     printf ("%s: Connecting to interrupt vector %d\n", MyName, pPmacCtlr->irqVector - 1);
   )
@@ -318,12 +325,12 @@ long pmacVmeConfig (int ctlrNumber, unsigned long addrBase, unsigned long addrDp
     printf ("%s: Enabling interrupt level %d\n", MyName, pPmacCtlr->irqLevel);
   )
 
-  status = devEnableInterruptLevel (intVME, pPmacCtlr->irqLevel);
+  status = devEnableInterruptLevelVME ( pPmacCtlr->irqLevel);
   if (!RTN_SUCCESS(status)) {
     printf ("%s: Failure to enable interrupt level.\n", MyName);
     return status;
   }
-  		  
+*/
   pPmacCtlr->present = pPmacCtlr->presentBase | pPmacCtlr->presentDpram;
   pPmacCtlr->enabled = pPmacCtlr->enabledBase | pPmacCtlr->enabledDpram;
   pPmacCtlr->configured = TRUE;
@@ -344,6 +351,7 @@ long pmacVmeConfig (int ctlrNumber, unsigned long addrBase, unsigned long addrDp
       MyName, pmacVmeNumCtlrs, PMAC_MAX_CTLRS);
   )
 
+  PMAC_DEBUG (1,devAddressMap();)
   return 0;
 }
 
@@ -356,7 +364,7 @@ PMAC_LOCAL long pmacVmeInit (void) {
   /* char   *MyName = "pmacVmeInit"; */
   int	    i;
   PMAC_CTLR *pPmacCtlr;
-  STATUS    semStatus;
+  epicsEventStatus    semStatus;
 
   pmacVmeConfigLock = 1;
 
@@ -369,7 +377,7 @@ PMAC_LOCAL long pmacVmeInit (void) {
 
     if (pPmacCtlr->configured) {
       if (pPmacCtlr->presentBase & pPmacCtlr->enabledBase) {
-  	semStatus=semGive (pPmacCtlr->ioMbxLockSem);
+        semStatus=epicsEventTrigger(pPmacCtlr->ioMbxLockSem);
   	printf ("pmacVmeInit: semStatus=%d, card=%d \n",semStatus, i);  
   	pPmacCtlr->activeBase = TRUE;
       }
@@ -396,13 +404,13 @@ PMAC_LOCAL long pmacVmeInit (void) {
  */
 PMAC_LOCAL void pmacMbxReceiptISR (PMAC_CTLR *pPmacCtlr) {
   char *  MyName = "pmacMbxReceiptISR";
-  STATUS  semStatus;
+  epicsEventStatus  semStatus;
 
   PMAC_DEBUG (10,
     PMAC_MESSAGE ("%s: PMAC IRQ MbxReceipt for ctlr %d\n", MyName, pPmacCtlr->ctlr,0,0,0,0);
   )
 
-  semStatus=semGive (pPmacCtlr->ioMbxReceiptSem);
+  semStatus=epicsEventTrigger (pPmacCtlr->ioMbxReceiptSem);
   if ( semStatus ) {
     PMAC_MESSAGE ("%s: semStatus=%d card=%d\n", MyName, semStatus, pPmacCtlr->ctlr,0,0,0); 
   }
@@ -422,7 +430,7 @@ PMAC_LOCAL void pmacMbxReadmeISR (PMAC_CTLR *pPmacCtlr) {
     PMAC_MESSAGE ("%s: PMAC IRQ MbxReadme for ctlr %d\n", MyName, pPmacCtlr->ctlr,0,0,0,0);
   )
 
-  semGive (pPmacCtlr->ioMbxReadmeSem);
+  epicsEventSignal (pPmacCtlr->ioMbxReadmeSem);
 
   return;
 }
@@ -521,7 +529,7 @@ PMAC_LOCAL char pmacMbxRead (int ctlr, char *readbuf, char *errmsg) {
   int	    i;
   char      terminator;
   PMAC_CTLR *pPmacCtlr;
-  STATUS    stat;
+  epicsEventStatus    stat;
   
   pPmacCtlr = &pmacVmeCtlr[ctlr];
   
@@ -530,8 +538,8 @@ PMAC_LOCAL char pmacMbxRead (int ctlr, char *readbuf, char *errmsg) {
 
   while ( terminator == 0) {
     pPmacCtlr->pBase->mailbox.MB[1].data = 0;
-    stat = semTake( pPmacCtlr->ioMbxReadmeSem, WAIT_TIMEOUT);
-    if (stat == S_objLib_OBJ_TIMEOUT) PMAC_MESSAGE ("%s: PMAC MBX README FAILED, controller: %d\n", MyName, pPmacCtlr->ctlr,0,0,0,0);
+    stat = epicsEventWaitWithTimeout( pPmacCtlr->ioMbxReadmeSem, WAIT_SEC_TIMEOUT);
+    if (stat == epicsEventWaitTimeout) PMAC_MESSAGE ("%s: PMAC MBX README FAILED, controller: %d\n", MyName, pPmacCtlr->ctlr,0,0,0,0);
     terminator = pmacMbxIn (ctlr, &readbuf[i], errmsg);
     i += PMAC_BASE_MBX_REGS_IN;
   }
@@ -551,7 +559,7 @@ PMAC_LOCAL char pmacMbxWrite (int ctlr, char *writebuf) {
   int	    i;
   char      terminator;
   PMAC_CTLR *pPmacCtlr;
-  STATUS    stat;
+  epicsEventStatus    stat;
   
   pPmacCtlr = &pmacVmeCtlr[ctlr];
 
@@ -560,8 +568,8 @@ PMAC_LOCAL char pmacMbxWrite (int ctlr, char *writebuf) {
 
   while (terminator == 0) {
     terminator = pmacMbxOut (ctlr, &writebuf[i]);
-    stat = semTake (pPmacCtlr->ioMbxReceiptSem, WAIT_TIMEOUT);
-    if (stat == S_objLib_OBJ_TIMEOUT) PMAC_MESSAGE ("%s: PMAC MBX RECEIPT FAILED, controller: %d\n", MyName, pPmacCtlr->ctlr,0,0,0,0);
+    stat = epicsEventWaitWithTimeout( pPmacCtlr->ioMbxReceiptSem, WAIT_SEC_TIMEOUT);
+    if (stat == epicsEventWaitTimeout) PMAC_MESSAGE ("%s: PMAC MBX RECEIPT FAILED, controller: %d\n", MyName, pPmacCtlr->ctlr,0,0,0,0);
     i += PMAC_BASE_MBX_REGS_OUT;
   }
 
@@ -576,7 +584,7 @@ PMAC_LOCAL char pmacMbxWrite (int ctlr, char *writebuf) {
  */
 long pmacMbxLock (int ctlr) {
   char      *MyName = "pmacMbxLock";
-  STATUS    stat;
+  epicsEventStatus    stat;
   PMAC_CTLR *pPmacCtlr;
 
   pPmacCtlr = &pmacVmeCtlr[ctlr];
@@ -584,8 +592,8 @@ long pmacMbxLock (int ctlr) {
     PMAC_MESSAGE ("%s: PMAC MBX LOCK %d\n", MyName, pPmacCtlr->ctlr,0,0,0,0);
   )
 
-  stat = semTake (pPmacCtlr->ioMbxLockSem, WAIT_TIMEOUT);
-  if (stat == S_objLib_OBJ_TIMEOUT) PMAC_MESSAGE ("%s: PMAC MBX LOCK FAILED, controller: %d\n", MyName, pPmacCtlr->ctlr,0,0,0,0);
+  stat = epicsEventWaitWithTimeout( pPmacCtlr->ioMbxLockSem, WAIT_SEC_TIMEOUT);
+  if (stat == epicsEventWaitTimeout) PMAC_MESSAGE ("%s: PMAC MBX LOCK FAILED, controller: %d\n", MyName, pPmacCtlr->ctlr,0,0,0,0);
   return 0;
 }
 
@@ -603,7 +611,7 @@ long pmacMbxUnlock (int ctlr) {
     PMAC_MESSAGE ("%s: PMAC MBX UNLOCK %d\n", MyName, pPmacCtlr->ctlr,0,0,0,0);
   )
   
-  semGive (pPmacCtlr->ioMbxLockSem);
+  epicsEventSignal (pPmacCtlr->ioMbxLockSem);
   return 0;
 }
 
@@ -636,7 +644,7 @@ PMAC_DPRAM * pmacRamAddr (int ctlr, int offset) {
   PMAC_DPRAM *pDpram = (PMAC_DPRAM *) (pCtlr->pDpramBase + offset);
 
   PMAC_DEBUG (2,
-    PMAC_MESSAGE ("pmacRamAddr:  Controller #%d, at base %#X with offset %#X = address a24 %#010X \n",
+    PMAC_MESSAGE ("pmacRamAddr:  Controller #%d, at base %p with offset %#X = address a24 %p \n",
       ctlr, pCtlr->pDpramBase, offset, pDpram,0,0);
   )
 /* This is a workaround to restore PMAC clock synchronization in case of 2 PMACS -- Sergey, Oleg 2006.01.30 */
@@ -860,3 +868,28 @@ PMAC_LOCAL long pmacRamGetL (PMAC_DPRAM *pDpram, double *pVal) {
 
   return 0;
 }
+
+
+
+
+static const iocshArg pmacVmeConfigArg0 = {"ctlrNumber",     iocshArgInt};
+static const iocshArg pmacVmeConfigArg1 = {"addrBase", iocshArgInt};
+static const iocshArg pmacVmeConfigArg2 = {"addrDpram", iocshArgInt};
+static const iocshArg pmacVmeConfigArg3 = {"irqVec", iocshArgInt};
+static const iocshArg pmacVmeConfigArg4 = {"irqLevel", iocshArgInt};
+static const iocshArg * const pmacVmeConfigArgs[] = {&pmacVmeConfigArg0, &pmacVmeConfigArg1, &pmacVmeConfigArg2, &pmacVmeConfigArg3, &pmacVmeConfigArg4};
+
+static const iocshFuncDef pmacVmeConfigDef = {"pmacVmeConfig", 5, pmacVmeConfigArgs};
+
+static void pmacVmeConfigCallFunc(const iocshArgBuf *args)
+{
+    pmacVmeConfig(args[0].ival, args[1].ival, args[2].ival, args[3].ival, args[4].ival);
+}
+
+
+static void pmacVmeConfigRegister(void)
+{
+    iocshRegister(&pmacVmeConfigDef,  pmacVmeConfigCallFunc);
+}
+
+epicsExportRegistrar(pmacVmeConfigRegister);

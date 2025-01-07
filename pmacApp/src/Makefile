@@ -68,6 +68,7 @@ pmacAsynMotorPort_SRCS += pmacCallbackInterface.cpp
 
 # do debug build
 # CXXFLAGS= -g -O0 -fPIC
+USR_CFLAGS += -DUSE_TYPED_RSET
 
 # Enable wonderful C++ 11 features
 USR_CXXFLAGS_Linux += -std=c++11
