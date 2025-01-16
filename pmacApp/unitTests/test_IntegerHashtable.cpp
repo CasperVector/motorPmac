@@ -130,9 +130,9 @@ BOOST_AUTO_TEST_CASE(test_IntHashtableMemory)
 
   // Record the base memory usage
   process_mem_usage(vm, res);
-  BOOST_MESSAGE("VM: " << vm << "; RSS: " << res);
+  BOOST_TEST_MESSAGE("VM: " << vm << "; RSS: " << res);
   process_mem_usage(vm_base, res_base);
-  BOOST_MESSAGE("VM: " << vm_base << "; RSS: " << res_base);
+  BOOST_TEST_MESSAGE("VM: " << vm_base << "; RSS: " << res_base);
 
   // Insert a value 10 times
   for (int index = 0; index < 10; index++){
@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE(test_IntHashtableMemory)
   }
   // Record the base memory usage
   process_mem_usage(vm, res);
-  BOOST_MESSAGE("VM: " << vm << "; RSS: " << res);
+  BOOST_TEST_MESSAGE("VM: " << vm << "; RSS: " << res);
   // Verify memory usage change less than 1%
   BOOST_CHECK_CLOSE(vm/vm_base, 1.0, 1.0);
   BOOST_CHECK_CLOSE(res/res_base, 1.0, 1.0);
@@ -152,7 +152,7 @@ BOOST_AUTO_TEST_CASE(test_IntHashtableMemory)
 
   // Check memory usage
   process_mem_usage(vm, res);
-  BOOST_MESSAGE("VM: " << vm << "; RSS: " << res);
+  BOOST_TEST_MESSAGE("VM: " << vm << "; RSS: " << res);
   // Verify memory usage change less than 1%
   BOOST_CHECK_CLOSE(vm/vm_base, 1.0, 1.0);
   BOOST_CHECK_CLOSE(res/res_base, 1.0, 1.0);
@@ -164,7 +164,7 @@ BOOST_AUTO_TEST_CASE(test_IntHashtableMemory)
 
   // Check memory usage
   process_mem_usage(vm, res);
-  BOOST_MESSAGE("VM: " << vm << "; RSS: " << res);
+  BOOST_TEST_MESSAGE("VM: " << vm << "; RSS: " << res);
   // Verify memory usage change less than 1%
   BOOST_CHECK_CLOSE(vm/vm_base, 1.0, 1.0);
   BOOST_CHECK_CLOSE(res/res_base, 1.0, 1.0);
@@ -176,7 +176,7 @@ BOOST_AUTO_TEST_CASE(test_IntHashtableMemory)
 
   // Check memory usage
   process_mem_usage(vm, res);
-  BOOST_MESSAGE("VM: " << vm << "; RSS: " << res);
+  BOOST_TEST_MESSAGE("VM: " << vm << "; RSS: " << res);
   // Verify memory usage change less than 1%
   BOOST_CHECK_CLOSE(vm/vm_base, 1.0, 1.0);
   BOOST_CHECK_CLOSE(res/res_base, 1.0, 1.0);
