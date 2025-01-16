@@ -7,4 +7,5 @@ DIRS := $(DIRS) $(filter-out $(DIRS), $(wildcard *Db*))
 DIRS += opi
 DIRS += unitTests
 DIRS += pmc
+unitTests_DEPEND_DIRS += src
 include $(TOP)/configure/RULES_DIRS
