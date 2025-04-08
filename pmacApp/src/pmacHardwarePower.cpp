@@ -295,9 +295,8 @@ std::string pmacHardwarePower::parseCSMappingResult(const std::string mappingRes
   debugf(DEBUG_FLOW, functionName, "command %s", mappingResult.c_str());
 
   if (mappingResult.length() > 0) {
-    const char *mapping = mappingResult.substr(mappingResult.length() - 1, 1).c_str();
-    char upper_mapping = (char) toupper(mapping[0]);
-    result = std::string(1, upper_mapping);
+    char mapping = mappingResult[mappingResult.length() - 1];
+    result = std::string(1, (char) toupper(mapping));
   }
 
   return result;
