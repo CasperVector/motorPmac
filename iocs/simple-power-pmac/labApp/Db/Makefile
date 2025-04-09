@@ -7,6 +7,7 @@ TOP = ../..
 include $(TOP)/configure/CONFIG
 
 DB += lab_expanded.db
+DB += lab.db
 
 include $(TOP)/configure/RULES
 

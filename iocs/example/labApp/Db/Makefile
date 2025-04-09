@@ -6,7 +6,6 @@
 TOP = ../..
 include $(TOP)/configure/CONFIG
 
-PATH := $(PATH):$(EPICS_EXTENSIONS)/bin/linux-x86_64
 DB += lab_expanded.db
 DB += lab.db
 

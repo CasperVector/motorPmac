@@ -7,8 +7,7 @@ TOP = ../..
 include $(TOP)/configure/CONFIG
 
 SCRIPTS += ../stlab.sh
-SCRIPTS += stlab.boot
-PATH := $(PATH):$(EPICS_EXTENSIONS)/bin/linux-x86_64
+SCRIPTS += ../stlab.boot
 
 include $(TOP)/configure/RULES
 
