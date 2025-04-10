@@ -21,9 +21,11 @@ lab_registerRecordDeviceDriver(pdbbase)
 
 # Create IP Port (PortName, IPAddr)
 pmacAsynIPConfigure("BRICK1port", "172.23.240.86:1025")
+# Create SSH Port (PortName, IPAddress, Username, Password, Priority, DisableAutoConnect, noProcessEos)
+#drvAsynPowerPMACPortConfigure("BRICK1port", "172.23.247.1", "root", "deltatau", "0", "0", "0")
 
 # Configure Model 3 Controller Driver (ControlerPort, LowLevelDriverPort, Address, Axes, MovingPoll, IdlePoll)
-pmacCreateController("Brick", "BRICK1port", 0, 8, 100, 200)
+pmacCreateController("Brick", "BRICK1port", 0, 8, 100, 1000)
 # Configure Model 3 Axes Driver (Controler Port, Axis Count)
 pmacCreateAxes("Brick", 8)
 

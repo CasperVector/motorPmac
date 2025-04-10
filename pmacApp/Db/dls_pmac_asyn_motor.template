@@ -9,9 +9,9 @@
 # file
 
 # include motor record from the motor module
-include "basic_asyn_motor.template"
+include "basic_pmac_motor.template"
 
-# numbered name aliases for all PVs in basic_asyn_motor.template
+# numbered name aliases for all PVs in basic_pmac_motor.template
 alias($(P)$(M), $(PMAC):M$(ADDR))
 alias($(P)$(M):ADDR, $(PMAC):M$(ADDR):ADDR)
 alias($(P)$(M):PORT, $(PMAC):M$(ADDR):PORT)

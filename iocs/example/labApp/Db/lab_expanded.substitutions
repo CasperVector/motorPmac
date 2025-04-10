@@ -27,7 +27,8 @@ pattern { PORT, P, NAXES, TIMEOUT, FEEDRATE, CSG0, CSG1, CSG2, CSG3, CSG4, CSG5,
 # Macros:
 #  PORT  The asyn port for the pmac controller
 #  P     PV Prefix
-file $(PMAC)/db/pmacStatus.template
+# For Non-Power PMAC, use pmacStatus.template instead
+file $(PMAC)/db/powerPmacStatus.template
 {
 pattern { PORT, P }
     { "Brick", "BRICK1" }

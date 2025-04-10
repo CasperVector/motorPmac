@@ -1,3 +1,0 @@
-#!/bin/bash
-edm -m "PMAC=BRICK1,CS=CS3" -x etc/pmacQVars.edl
-
