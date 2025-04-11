@@ -1,0 +1,6 @@
+# Use the following lines if motorPmac was built inside motor
+MOTOR=
+-include $(MOTOR)/configure/RELEASE
+# Use the following lines if motorPmac was built outside motor
+#!MOTOR_PMAC=
+#!-include $(MOTOR_PMAC)/configure/RELEASE.local

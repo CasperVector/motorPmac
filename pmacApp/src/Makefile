@@ -1,22 +1,12 @@
-TOP=../..
-
+# Makefile
+TOP = ../..
 include $(TOP)/configure/CONFIG
-#----------------------------------------
-#  ADD MACRO DEFINITIONS AFTER THIS LINE
-#=============================
 
-#==================================================
-# build a support library
+# The following are used for debugging messages.
+#!USR_CXXFLAGS += -DDEBUG
 
 DBD += pmacAsynMotorPort.dbd
 DBD += pmacAsynMotorPortVxWorks.dbd
-
-DBD += pmac.dbd
-pmac_DBD += base.dbd
-pmac_DBD += asyn.dbd
-pmac_DBD += calcSupport.dbd
-pmac_DBD += busySupport.dbd
-pmac_DBD += motorSupport.dbd
 
 LIBRARY_IOC += pmacAsynMotorPort
 
@@ -41,42 +31,29 @@ INC += pmacCallbackStore.h
 INC += pmacCallbackInterface.h
 INC += pmacDebugger.h
 
-LIB_LIBS += motor
-LIB_LIBS += asyn
-LIB_LIBS += $(EPICS_BASE_IOC_LIBS)
+SRCS += pmacDebugger.cpp
+SRCS += pmacCSMonitor.cpp
+SRCS += pmacController.cpp
+SRCS += pmacAxis.cpp
+SRCS += pmacCSController.cpp
+SRCS += pmacCSAxis.cpp
+SRCS += pmacCsGroups.cpp
+SRCS += pmacGroupsHashtable.cpp
+SRCS += CharIntHashtable.cpp
+SRCS += StringHashtable.cpp
+SRCS += IntegerHashtable.cpp
+SRCS += Hashtable.cpp
+SRCS += pmacCommandStore.cpp
+SRCS += pmacMessageBroker.cpp
+SRCS += pmacTrajectory.cpp
+SRCS += pmacHardwareInterface.cpp
+SRCS += pmacHardwareTurbo.cpp
+SRCS += pmacHardwarePower.cpp
+SRCS += pmacCallbackStore.cpp
+SRCS += pmacCallbackInterface.cpp
 
-pmacAsynMotorPort_SRCS = pmacDebugger.cpp
-pmacAsynMotorPort_SRCS += pmacCSMonitor.cpp
-pmacAsynMotorPort_SRCS += pmacController.cpp
-pmacAsynMotorPort_SRCS += pmacAxis.cpp
-pmacAsynMotorPort_SRCS += pmacCSController.cpp
-pmacAsynMotorPort_SRCS += pmacCSAxis.cpp
-pmacAsynMotorPort_SRCS += pmacCsGroups.cpp
-pmacAsynMotorPort_SRCS += pmacGroupsHashtable.cpp
-pmacAsynMotorPort_SRCS += CharIntHashtable.cpp
-pmacAsynMotorPort_SRCS += StringHashtable.cpp
-pmacAsynMotorPort_SRCS += IntegerHashtable.cpp
-pmacAsynMotorPort_SRCS += Hashtable.cpp
-pmacAsynMotorPort_SRCS += pmacCommandStore.cpp
-pmacAsynMotorPort_SRCS += pmacMessageBroker.cpp
-pmacAsynMotorPort_SRCS += pmacTrajectory.cpp
-pmacAsynMotorPort_SRCS += pmacHardwareInterface.cpp
-pmacAsynMotorPort_SRCS += pmacHardwareTurbo.cpp
-pmacAsynMotorPort_SRCS += pmacHardwarePower.cpp
-pmacAsynMotorPort_SRCS += pmacCallbackStore.cpp
-pmacAsynMotorPort_SRCS += pmacCallbackInterface.cpp
-
-# do debug build
-# CXXFLAGS= -g -O0 -fPIC
-
-# specify all source files to be compiled and added to the library
-#pmac_SRCS += xxx
-
+pmacAsynMotorPort_LIBS += motor asyn
 pmacAsynMotorPort_LIBS += $(EPICS_BASE_IOC_LIBS)
 
-#===========================
-
 include $(TOP)/configure/RULES
-#----------------------------------------
-#  ADD RULES AFTER THIS LINE
 

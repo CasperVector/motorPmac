@@ -1,9 +1,0 @@
-# TODO edit this file to reflect your site dependencies locations
-
-PMAC=$(TOP)/../..
-include $(TOP)/../../configure/RELEASE.$(EPICS_HOST_ARCH).Common
--include $(TOP)/../../configure/RELEASE.local.$(EPICS_HOST_ARCH)
--include $(TOP)/../../configure/RELEASE.local
-
-# ASYN=       $(SUPPORT)/asyn/4-41
-$(info ASYN = $(ASYN))
