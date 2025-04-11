@@ -1,0 +1,3 @@
+substitute "P=$(PMAC),CTRL=$(PMAC)"
+include "autohome.template"
+

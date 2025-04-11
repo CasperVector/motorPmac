@@ -13,7 +13,7 @@ include $(TOP)/configure/CONFIG
 
 
 DB += pmacController.template
-DB += pmacCsController.template
+DB += pmacCsController.db
 DB += pmacControllerTrajectory.template
 DB += pmacStatusAxis.template
 DB += pmacStatus8Axes.template
@@ -59,6 +59,15 @@ DB += zform.template
 
 # The following templates are used for CSS screens
 DB += pmacCSS.template
+
+DB += myPmacController.db
+DB += myPmacStatus.db
+DB += myPowerPmacStatus.db
+DB += my_autohome.db
+DB += my_pmac_asyn_motor.db
+DB += my_pmac_cs_asyn_motor.db
+DB += pmac_extra_inp.template
+DB += pmac_extra_out.template
 
 #----------------------------------------------------
 # If <anyname>.db template is not named <anyname>*.template add

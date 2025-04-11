@@ -1,0 +1,3 @@
+substitute "P=$(PMAC),M=:M$(ADDR),NOALIAS=#"
+include "dls_pmac_asyn_motor.template"
+

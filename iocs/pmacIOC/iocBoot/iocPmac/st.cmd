@@ -5,6 +5,7 @@ cd "${TOP}"
 
 dbLoadDatabase "dbd/pmac.dbd"
 pmac_registerRecordDeviceDriver pdbbase
+epicsEnvSet("EPICS_DB_INCLUDE_PATH", "${MOTOR}/db:${MOTOR_PMAC}/db")
 
 cd "${TOP}/iocBoot/${IOC}"
 
@@ -62,7 +63,8 @@ pmacCsGroupAddAxis("Brick", 3, 4, I, 2)
 pmacSetCoordStepsPerUnit("CS2", 1, 1000)
 pmacSetCoordStepsPerUnit("CS2", 2, 100)
 
-dbLoadTemplate("lab_expanded.substitutions")
-dbLoadRecords("lab.db")
+# For Non-Power PMAC, use myPmacStatus.template instead
+dbLoadRecords("myPowerPmacStatus.db", "PMAC=BRICK1,PORT=Brick")
+dbLoadTemplate("pmac_motor.substitutions", "PMAC=BRICK1,PORT=Brick,SPORT=BRICK1port,TIMEOUT=4")
 iocInit
 

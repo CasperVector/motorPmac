@@ -12,7 +12,7 @@ record(stringin, "$(P)$(M):CS_PORT_NAME") {
 }
 
 # add alias for standard CS axis name
-alias($(P)$(M), $(PMAC):CS$(CS):M$(ADDR))
+$(NOALIAS=)alias($(P)$(M), $(PMAC):CS$(CS):M$(ADDR))
 
 
 ###############################################################

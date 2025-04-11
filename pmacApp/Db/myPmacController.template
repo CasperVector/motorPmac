@@ -1,0 +1,3 @@
+substitute "P=$(PMAC)"
+include "pmacController.template"
+

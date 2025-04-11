@@ -1,0 +1,99 @@
+file "myPmacController.db"
+{
+pattern { NAXES, FEEDRATE, CSG0, CSG1, CSG2, CSG3, CSG4, CSG5, CSG6, CSG7 }
+{ "8", "100", "1,2->A,B", "3,4->I", "MIXED CS3", "MIXED CS2", "", "", "", "" }
+}
+
+file "pmacStatusAxis.template"
+{
+pattern { AXIS }
+{ "1" }
+{ "2" }
+{ "3" }
+{ "4" }
+{ "5" }
+{ "6" }
+{ "7" }
+{ "8" }
+}
+
+file "my_pmac_asyn_motor.db"
+{
+pattern { ADDR, DESC, MRES, VELO, PREC, EGU, TWV, DIR, VBAS, VMAX, ACCL, BDST, BVEL, BACC, DHLM, DLLM, HLM, LLM, HLSV, INIT, SREV, RRES, ERES, JAR, UEIP, URIP, RDBL, RLNK, RTRY, DLY, OFF, RDBD, FOFF, ADEL, NTM, FEHIGH, FEHIHI, FEHHSV, FEHSV, SCALE, HOME, ALLOW_HOMED_SET }
+{ "1", "Motor 1->A", "1", "20", "3", "mm", "50", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1", "$(PMAC)", "#" }
+{ "2", "Motor 2->B", "1", "20", "3", "mm", "50", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1", "$(PMAC)", "#" }
+{ "3", "Motor 3->I JACK 1", "0.001", "20", "3", "mm", "50", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1", "$(PMAC)", "#" }
+{ "4", "Motor 4->I- JACK 2", "0.001", "20", "3", "mm", "50", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1", "$(PMAC)", "#" }
+{ "5", "Motor 5", "0.001", "20", "3", "mm", "10", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1", "$(PMAC)", "#" }
+{ "6", "Motor 6", "0.001", "20", "3", "mm", "10", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1", "$(PMAC)", "#" }
+{ "7", "Motor 7", "0.001", "20", "3", "mm", "10", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1", "$(PMAC)", "#" }
+{ "8", "Motor 8", "0.001", "20", "3", "mm", "10", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1", "$(PMAC)", "#" }
+}
+
+file "pmacCsController.db"
+{
+pattern { PARENTPORT, PORT, CS }
+{ "Brick", "CS1", "1" }
+{ "Brick", "CS2", "2" }
+{ "Brick", "CS3", "3" }
+}
+
+file "my_pmac_cs_asyn_motor.db"
+{
+pattern { PORT, CS, ADDR, DESC, MRES, VELO, PREC, EGU, TWV, DIR, VBAS, VMAX, ACCL, BDST, BVEL, BACC, DHLM, DLLM, HLM, LLM, HLSV, INIT, SREV, RRES, ERES, JAR, UEIP, URIP, RDBL, RLNK, RTRY, DLY, OFF, RDBD, FOFF, ADEL, NTM, FEHIGH, FEHIHI, FEHHSV, FEHSV, SCALE }
+{ "CS2", "2", "1", "CS2 1->A", "0.0001", "20", "3", "mm", "1", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", " ", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1" }
+{ "CS2", "2", "2", "CS2 2->B", "0.0001", "20", "3", "mm", "1", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", " ", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1" }
+{ "CS3", "3", "1", "CS3 1->A", "0.0001", "20", "3", "mm", "1", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", " ", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1" }
+{ "CS3", "3", "2", "CS3 2->B", "0.0001", "20", "3", "mm", "1", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", " ", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1" }
+{ "CS3", "3", "7", "CS3 HEIGHT", "0.0001", "20", "3", "mm", "1", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1" }
+{ "CS3", "3", "8", "CS3 ANGLE", "0.0001", "20", "3", "deg", "1", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1" }
+}
+
+file "pmacControllerTrajectory.template"
+{
+pattern { NPOINTS, NAxes, MAXPOINTS, PREC }
+{ "10000", "8", "4000000", "3" }
+}
+
+file "my_autohome.db"
+{
+pattern { PLC, GRP1, GRP2, GRP3, GRP4, GRP5, GRP6, GRP7, GRP8, GRP9, GRP10, STATE11, STATE12, STATE13, STATE14, STATE15, STATUS11, STATUS12, STATUS13, STATUS14, STATUS15, STATUSSV11, STATUSSV12, STATUSSV13, STATUSSV14, STATUSSV15, DESC }
+{ "10", "All", "Axis1", "Axis2", "Axis3", "Axes4-8", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "NO_ALARM", "NO_ALARM", "NO_ALARM", "NO_ALARM", "NO_ALARM", "" }
+}
+
+file "pmac_extra_inp.template"
+{
+pattern { SUFFIX, DTYP, ADDR }
+{ "CS2:Error", "asynInt32", "VIF_RY:$002114" }
+{ "CS3:Error", "asynInt32", "VIF_RY:$002214" }
+{ "CS3:Q1", "asynFloat64", "VDS_&3Q1" }
+{ "CS3:Q2", "asynFloat64", "VDS_&3Q2" }
+{ "CS3:Q3", "asynFloat64", "VDS_&3Q3" }
+{ "CS3:Q4", "asynFloat64", "VDS_&3Q4" }
+{ "CS3:Q5", "asynFloat64", "VDS_&3Q5" }
+{ "CS3:Q6", "asynFloat64", "VDS_&3Q6" }
+{ "CS3:Q7", "asynFloat64", "VDS_&3Q7" }
+{ "CS3:Q8", "asynFloat64", "VDS_&3Q8" }
+{ "CS3:Q9", "asynFloat64", "VDS_&3Q9" }
+{ "CS3:Q70", "asynFloat64", "VDS_&3Q70" }
+{ "CS3:Q71", "asynFloat64", "VDS_&3Q71" }
+{ "CS3:Q72", "asynFloat64", "VDS_&3Q72" }
+{ "CS3:Q73", "asynFloat64", "VDS_&3Q73" }
+{ "CS3:Q74", "asynFloat64", "VDS_&3Q74" }
+{ "CS3:Q75", "asynFloat64", "VDS_&3Q75" }
+{ "CS3:Q76", "asynFloat64", "VDS_&3Q76" }
+{ "CS3:Q77", "asynFloat64", "VDS_&3Q77" }
+{ "CS3:Q78", "asynFloat64", "VDS_&3Q78" }
+{ "CS3:Q79", "asynFloat64", "VDS_&3Q79" }
+{ "CS3:Q80", "asynFloat64", "VDS_&3Q80" }
+{ "CS3:Q81", "asynFloat64", "VDS_&3Q81" }
+{ "CS3:Q82", "asynFloat64", "VDS_&3Q82" }
+{ "CS3:Q83", "asynFloat64", "VDS_&3Q83" }
+{ "CS3:Q84", "asynFloat64", "VDS_&3Q84" }
+{ "CS3:Q85", "asynFloat64", "VDS_&3Q85" }
+{ "CS3:Q86", "asynFloat64", "VDS_&3Q86" }
+{ "CS3:Q87", "asynFloat64", "VDS_&3Q87" }
+{ "CS3:Q88", "asynFloat64", "VDS_&3Q88" }
+{ "CS3:Q89", "asynFloat64", "VDS_&3Q89" }
+}
+

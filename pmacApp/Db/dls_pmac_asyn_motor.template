@@ -12,22 +12,22 @@
 include "basic_pmac_motor.template"
 
 # numbered name aliases for all PVs in basic_pmac_motor.template
-alias($(P)$(M), $(PMAC):M$(ADDR))
-alias($(P)$(M):ADDR, $(PMAC):M$(ADDR):ADDR)
-alias($(P)$(M):PORT, $(PMAC):M$(ADDR):PORT)
-alias($(P)$(M):SCALE, $(PMAC):M$(ADDR):SCALE)
-alias($(P)$(M):USER:SDIS, $(PMAC)M$(ADDR):USER:SDIS)
-alias($(P)$(M):SDIS, $(PMAC):M$(ADDR):SDIS)
-alias($(P)$(M):KILL, $(PMAC):M$(ADDR):KILL)
-alias($(P)$(M):ELOSS, $(PMAC):M$(ADDR):ELOSS)
-alias($(P)$(M):ELOSSRC, $(PMAC):M$(ADDR):ELOSSRC)
-alias($(P)$(M):MR_MOVE_WRITE, $(PMAC):M$(ADDR):MR_MOVE_WRITE)
-alias($(P)$(M):CHECK_SYNC, $(PMAC):M$(ADDR):CHECK_SYNC)
-alias($(P)$(M):FERROR, $(PMAC):M$(ADDR):FERROR)
-alias($(P)$(M):FERRORMAX, $(PMAC):M$(ADDR):FERRORMAX)
-alias($(P)$(M):FEMAXRESET, $(PMAC):M$(ADDR):FEMAXRESET)
-alias($(P)$(M):HOMEVIS, $(PMAC):M$(ADDR):HOMEVIS)
-alias($(P)$(M):HOMEVISSTR, $(PMAC):M$(ADDR):HOMEVISSTR)
+$(NOALIAS=)alias($(P)$(M), $(PMAC):M$(ADDR))
+$(NOALIAS=)alias($(P)$(M):ADDR, $(PMAC):M$(ADDR):ADDR)
+$(NOALIAS=)alias($(P)$(M):PORT, $(PMAC):M$(ADDR):PORT)
+$(NOALIAS=)alias($(P)$(M):SCALE, $(PMAC):M$(ADDR):SCALE)
+$(NOALIAS=)alias($(P)$(M):USER:SDIS, $(PMAC)M$(ADDR):USER:SDIS)
+$(NOALIAS=)alias($(P)$(M):SDIS, $(PMAC):M$(ADDR):SDIS)
+$(NOALIAS=)alias($(P)$(M):KILL, $(PMAC):M$(ADDR):KILL)
+$(NOALIAS=)alias($(P)$(M):ELOSS, $(PMAC):M$(ADDR):ELOSS)
+$(NOALIAS=)alias($(P)$(M):ELOSSRC, $(PMAC):M$(ADDR):ELOSSRC)
+$(NOALIAS=)alias($(P)$(M):MR_MOVE_WRITE, $(PMAC):M$(ADDR):MR_MOVE_WRITE)
+$(NOALIAS=)alias($(P)$(M):CHECK_SYNC, $(PMAC):M$(ADDR):CHECK_SYNC)
+$(NOALIAS=)alias($(P)$(M):FERROR, $(PMAC):M$(ADDR):FERROR)
+$(NOALIAS=)alias($(P)$(M):FERRORMAX, $(PMAC):M$(ADDR):FERRORMAX)
+$(NOALIAS=)alias($(P)$(M):FEMAXRESET, $(PMAC):M$(ADDR):FEMAXRESET)
+$(NOALIAS=)alias($(P)$(M):HOMEVIS, $(PMAC):M$(ADDR):HOMEVIS)
+$(NOALIAS=)alias($(P)$(M):HOMEVISSTR, $(PMAC):M$(ADDR):HOMEVISSTR)
 
 
 ###############################################################
@@ -67,7 +67,7 @@ include "pmacDirectMotor.template"
 
 
 # add numbered name aliases for above 3 templates
-substitute "P=$(PMAC):, M=M$(ADDR)"
+substitute "P=$(PMAC), M=:M$(ADDR)"
 include "motor_in_cs.template"
 include "eloss_kill_autohome_records.template"
 include "pmacDirectMotor.template"
