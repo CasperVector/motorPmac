@@ -40,7 +40,37 @@ const int pmacHardwarePower::PMAC_STATUS1_IN_POSITION = (0x1 << 11);
 const int pmacHardwarePower::PMAC_STATUS1_BLOCK_REQUEST = (0x1 << 9);
 const int pmacHardwarePower::PMAC_STATUS1_PHASED_MOTOR = (0x1 << 8);
 
-pmacHardwarePower::pmacHardwarePower() : pmacDebugger("pmacHardwareTurbo") {
+/*Global status ?*/
+const int pmacHardwarePower::PMAC_GSTATUS_FOREGROUND_WDT_FAULT = (0x1 << 0);      // Foreground soft watchdog timer fault - WDTFault bit 0
+const int pmacHardwarePower::PMAC_GSTATUS_BACKGROUND_WDT_FAULT = (0x1 << 1);      // Background soft watchdog timer fault - WDTFault bit 1
+const int pmacHardwarePower::PMAC_GSTATUS_PWR_ON_FAULT = (0x1 << 2);              // Power-up/reset load fault            - PwrOnFault
+const int pmacHardwarePower::PMAC_GSTATUS_PROJECT_LOAD_ERROR = (0x1 << 3);        // Project load error                   - ProjectLoadErr
+const int pmacHardwarePower::PMAC_GSTATUS_CONFIG_LOAD_ERROR = (0x1 << 4);         // Saved configuration load error       - ConfigLoadErr
+const int pmacHardwarePower::PMAC_GSTATUS_HW_CHANGE_ERROR = (0x1 << 5);           // Hardware change detected             - HWChangeErr
+const int pmacHardwarePower::PMAC_GSTATUS_FILE_CONFIG_ERROR = (0x1 << 6);         // System file configuration error      - FileConfigErr
+const int pmacHardwarePower::PMAC_GSTATUS_DEFAULT = (0x1 << 7);                   // Factory default configuration set    - Default
+const int pmacHardwarePower::PMAC_GSTATUS_NO_CLOCKS = (0x1 << 8);                 // No system clocks found               - NoClocks
+const int pmacHardwarePower::PMAC_GSTATUS_ABORTALL = (0x1 << 9);                  // “Abort all” input                    - AbortAll
+const int pmacHardwarePower::PMAC_GSTATUS_BUF_SIZE_ERROR = (0x1 << 10);           // Insufficient user buffer size error  - BufSizeErr
+const int pmacHardwarePower::PMAC_GSTATUS_FLASH_SIZE_ERROR = (0x1 << 11);         // Insufficient flash size error        - FlashSizeErr
+const int pmacHardwarePower::PMAC_GSTATUS_CK3W_CONFIG_ERROR0 = (0x1 << 12);       // CK3W module configuration error      - CK3WConfigErr bit 0
+const int pmacHardwarePower::PMAC_GSTATUS_CK3W_CONFIG_ERROR1 = (0x1 << 13);       // CK3W module configuration error      - CK3WConfigErr bit 1
+const int pmacHardwarePower::PMAC_GSTATUS_CK3W_CONFIG_ERROR2 = (0x1 << 14);       // CK3W module configuration error      - CK3WConfigErr bit 2
+const int pmacHardwarePower::PMAC_GSTATUS_CK3W_HW_CHANGE = (0x1 << 15);           // CK3W module change detected          - CK3WHWChange
+
+const int pmacHardwarePower::PMAC_HARDWARE_PROB = (PMAC_GSTATUS_FOREGROUND_WDT_FAULT |
+                                                   PMAC_GSTATUS_BACKGROUND_WDT_FAULT |
+                                                   PMAC_GSTATUS_PROJECT_LOAD_ERROR |
+                                                   PMAC_GSTATUS_CONFIG_LOAD_ERROR |
+                                                   PMAC_GSTATUS_HW_CHANGE_ERROR |
+                                                   PMAC_GSTATUS_FILE_CONFIG_ERROR |
+                                                   PMAC_GSTATUS_NO_CLOCKS |
+                                                   //PMAC_GSTATUS_ABORTALL |  // Not included to not affect CS that ignores the abort input (Coord[x].AbortAllMode=3)
+                                                   PMAC_GSTATUS_BUF_SIZE_ERROR |
+                                                   PMAC_GSTATUS_FLASH_SIZE_ERROR);
+
+
+pmacHardwarePower::pmacHardwarePower() : pmacDebugger("pmacHardwarePower") {
 }
 
 pmacHardwarePower::~pmacHardwarePower() {
@@ -49,6 +79,10 @@ pmacHardwarePower::~pmacHardwarePower() {
 
 std::string pmacHardwarePower::getGlobalStatusCmd() {
   return GLOBAL_STATUS;
+}
+
+int pmacHardwarePower::getGlobalStatusError() {
+  return PMAC_HARDWARE_PROB;
 }
 
 asynStatus
@@ -116,6 +150,7 @@ pmacHardwarePower::parseAxisStatus(int axis, pmacCommandStore *sPtr, axisStatus 
   std::string csString = "";
   char var[16];
   static const char *functionName = "parseAxisStatus";
+  char msg[47];
 
   statusString = sPtr->readValue(this->getAxisStatusCmd(axis));
 
@@ -124,7 +159,8 @@ pmacHardwarePower::parseAxisStatus(int axis, pmacCommandStore *sPtr, axisStatus 
   nvals = sscanf(statusString.c_str(), " $%8x%8x", &axStatus.status24Bit1_,
                  &axStatus.status24Bit2_);
   if (nvals != 2) {
-    debug(DEBUG_ERROR, functionName, "Failed to parse axis status (24 bit)", statusString);
+    sprintf(msg, "Failed to parse axis %d status (24 bit)", axis);
+    debug(DEBUG_ERROR, functionName, msg, statusString);
     axStatus.status24Bit1_ = 0;
     axStatus.status24Bit2_ = 0;
     status = asynError;
@@ -132,7 +168,8 @@ pmacHardwarePower::parseAxisStatus(int axis, pmacCommandStore *sPtr, axisStatus 
   nvals = sscanf(statusString.c_str(), " $%4x%4x%4x%4x", &axStatus.status16Bit1_,
                  &axStatus.status16Bit2_, &axStatus.status16Bit3_, &dummyVal);
   if (nvals != 4) {
-    debug(DEBUG_ERROR, functionName, "Failed to parse axis status (16 bit)", statusString);
+    sprintf(msg, "Failed to parse axis %d status (16 bit)", axis);
+    debug(DEBUG_ERROR, functionName, msg, statusString);
     axStatus.status16Bit1_ = 0;
     axStatus.status16Bit2_ = 0;
     axStatus.status16Bit3_ = 0;
@@ -302,45 +339,46 @@ std::string pmacHardwarePower::parseCSMappingResult(const std::string mappingRes
   return result;
 }
 
-void pmacHardwarePower::startTrajectoryTimePointsCmd(char *velCmd, char *userCmd,
-                                                     char *timeCmd, int addr) {
+void pmacHardwarePower::startTrajectoryTimePointsCmd(char *userCmd, char *timeCmd,
+                                                     int addr) {
   static const char *functionName = "startTrajectoryTimePointsCmd";
 
   debug(DEBUG_FLOW, functionName, "addr %d", addr);
 
-  sprintf(velCmd, "Next_Vel(%d)=", addr);
   sprintf(userCmd, "Next_User(%d)=", addr);
   sprintf(timeCmd, "Next_Time(%d)=", addr);
 
 }
 
-void pmacHardwarePower::addTrajectoryTimePointCmd(char *velCmd, char *userCmd, char *timeCmd,
-                                                  int velocityMode, int userFunc, int time,
+void pmacHardwarePower::addTrajectoryTimePointCmd(char *userCmd, char *timeCmd,
+                                                  int userFunc, int time,
                                                   bool firstVal) {
   static const char *functionName = "addTrajectoryTimePointCmd";
 
-  debugf(DEBUG_FLOW, functionName, "velCmd %s\nuserCmd %s\ntimeCmd %s\nvel %d, user %d, time %d",
-    velCmd, userCmd, timeCmd, velocityMode, userFunc, time);
+  debugf(DEBUG_FLOW, functionName, "userCmd %s\ntimeCmd %s\nvel %d, user %d, time %d",
+         userCmd, timeCmd, userFunc, time);
 
   if(firstVal) {
-    sprintf(velCmd, "%s%d", velCmd, velocityMode);
     sprintf(userCmd, "%s%d", userCmd, userFunc);
     sprintf(timeCmd, "%s%d", timeCmd, time);
   }
   else {
-    sprintf(velCmd, "%s,%d", velCmd, velocityMode);
     sprintf(userCmd, "%s,%d", userCmd, userFunc);
     sprintf(timeCmd, "%s,%d", timeCmd, time);
   }
 }
 
-void pmacHardwarePower::startAxisPointsCmd(char *axisCmd, int axis, int addr, int ) {
+void pmacHardwarePower::startAxisPointsCmd(char *axisCmd, int axis, int addr, int , bool posCmd ) {
   const char axes[] = "ABCUVWXYZ";
   static const char *functionName = "startAxisPointsCmd";
 
   debugf(DEBUG_FLOW, functionName, "cmd %s, axis %d, addr %d", axisCmd, axis, addr);
 
-  sprintf(axisCmd, "Next_%c(%d)=", axes[axis], addr);
+  if(posCmd) {
+    sprintf(axisCmd, "Next_%c(%d)=", axes[axis], addr);
+  } else {
+    sprintf(axisCmd, "Next_%c_Vel(%d)=", axes[axis], addr);
+  }
 }
 
 void pmacHardwarePower::addAxisPointCmd(char *axisCmd, int , double pos, int ,

@@ -19,13 +19,17 @@ public:
 
     asynStatus initialise(int noOfPoints);
 
-    asynStatus append(double **positions, double *times, int *user, int *velocity, int noOfPoints);
+    asynStatus append(double **positions, double **velocities, double *times, int *user, int noOfPoints);
 
     int getNoOfAxes();
 
     int getTotalNoOfPoints();
 
     int getNoOfValidPoints();
+
+    asynStatus isIndexValid(int index);
+
+    asynStatus isAxisValid(int axis);
 
     asynStatus getTime(int index, int *time);
 
@@ -35,6 +39,8 @@ public:
 
     asynStatus getPosition(int axis, int index, double *position);
 
+    asynStatus getVelocity(int axis, int index, double *velocity);
+
     void report();
 
 private:
@@ -42,6 +48,7 @@ private:
     int totalNoOfPoints_;           // Total number of points in the scan
     int noOfValidPoints_;           // Number of prepared points in the scan (based on delta times)
     double **profilePositions_;     // 2D array of profile positions (1 array for each axis)
+    double **profileVelocities_;    // 2D array of profile velocities (1 array for each axis)
     int *profileTimes_;             // Array of profile delta times for scan
     int *profileUser_;              // Array of profile user values
     int *profileVelMode_;           // Array of profile velocity modes

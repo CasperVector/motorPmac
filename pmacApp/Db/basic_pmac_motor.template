@@ -127,7 +127,7 @@
 # % gui, $(name=), demand, Backlash Secs to Vel,   <pv>.BACC
 # % gui, $(name=), demand, Move Fraction,   <pv>.FRAC
 # % gui, $(name=), demand, Retry Deadband,   <pv>.RDBD
-# % gui, $(name=), demand, Max Retrys,   <pv>.RTRY
+# % gui, $(name=), demand, Max Retries,   <pv>.RTRY
 
 # % gui, $(name=), demand, PREC,   <pv>.PREC
 # % gui, $(name=), demand, EGU,   <pv>.EGU

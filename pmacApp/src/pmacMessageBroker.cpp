@@ -12,6 +12,7 @@ const epicsFloat64 pmacMessageBroker::PMAC_TIMEOUT_ = 2.0;
 
 pmacMessageBroker::pmacMessageBroker(asynUser *pasynUser) :
         pmacDebugger("pmacMessageBroker"),
+        disable_poll(false),
         suppressStatus_(false),
         suppressCounter_(0),
         powerPMAC_(false),
@@ -27,8 +28,7 @@ pmacMessageBroker::pmacMessageBroker(asynUser *pasynUser) :
         updateTime_(0.0),
         lock_count(0),
         connected_(false),
-        newConnection_(true),
-        disable_poll(false)
+        newConnection_(true)
 {
   epicsTimeGetCurrent(&this->writeTime_);
   epicsTimeGetCurrent(&this->startTime_);
@@ -51,7 +51,7 @@ asynStatus pmacMessageBroker::connect(const char *port, int addr) {
   debug(DEBUG_FLOW, functionName, "Connecting to low level asynOctetSyncIO port", port);
 
   //Connect our Asyn user to the low level port that is a parameter to this constructor
-  status = lowLevelPortConnect(port, addr, &lowLevelPortUser_, (char *) "\006", (char *) "\r");
+  status = lowLevelPortConnect(port, addr, &lowLevelPortUser_, (char *) "\006", (char *) "\n");
   if (status != asynSuccess) {
     debug(DEBUG_ERROR, functionName, "Failed to connect to low level asynOctetSyncIO port", port);
   }

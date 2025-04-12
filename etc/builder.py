@@ -9,7 +9,7 @@ __all__ = ['GeoBrick']
 
 
 class Pmac(Device):
-    Dependencies = (Asyn, MotorLib)
+    Dependencies = (Asyn, MotorLib, Busy)
     AutoInstantiate = True
 
 
@@ -278,7 +278,7 @@ class PowerPMAC(DeltaTau):
         self.statusT = _powerPmacStatusT(PORT=name, P=self.P)
 
         # instantiate an axis status template for each axis
-        assert self.NAxes in range(1,33), "Number of axes (%d) must be in range 1..32" % self.NAxes
+        assert self.NAxes in range(1,257), "Number of axes (%d) must be in range 1..256" % self.NAxes
         self.axes = []
         # for each axis
         for i in range(1, self.NAxes + 1):
@@ -412,6 +412,25 @@ class pmacDisableLimitsCheck(Device):
                           Controller = Ident ('Underlying PMAC or GeoBrick object', DeltaTau),
                           Axis       = Simple('Axis number to disable limit check, defaults to all', int))
 
+class pmacSetOpenLoopEncoderAxis(Device):
+    Dependencies = (Pmac,)
+
+    def __init__(self, Controller, Axis, Encoder_axis):
+        self.__super.__init__()
+        self.Controller = Controller
+        self.Axis = Axis
+        self.Encoder_axis = Encoder_axis
+
+    def Initialise(self):
+
+        # model 3 version of pmacDisableLimitsCheck uses port instead of card
+        self.ControllerPort = self.Controller.DeviceName()
+        print 'pmacSetOpenLoopEncoderAxis("%(ControllerPort)s", %(Axis)d, %(Encoder_axis)d)' % self.__dict__
+
+    ArgInfo = makeArgInfo(__init__,
+                          Controller    = Ident ('Underlying PMAC or GeoBrick object', DeltaTau),
+                          Axis          = Simple('Motor axis number', int),
+                          Encoder_axis  = Simple('Encoder axis number', int))
 
 class pmacMonitorVariables(Device):
     Dependencies = (Pmac,)
@@ -528,6 +547,11 @@ class _pmacStatusAxis(AutoSubstitution):
     TemplateFile = 'pmacStatusAxis.template'
 
 
+class GeoBricketteMStop(AutoSubstitution):
+    """Creates some PVs for monitoring motion stop specific to a GeoBrickette pmac"""
+    TemplateFile = 'geobrickette_motion_stop.template'
+
+
 class _CsControlT(AutoSubstitution):
     TemplateFile = "pmacCsController.template"
     Dependencies = (Pmac,)
@@ -610,6 +634,20 @@ class pmacSetCoordStepsPerUnit(Device):
 def setPortArgInfo(cls):
     cls.ArgInfo.descriptions["PORT"] = Ident("Delta tau motor controller comms port", DeltaTau)
     return cls
+
+
+@setPortArgInfo
+class pmacVariableRead(AutoSubstitution):
+    WarnMacros = False
+    Dependencies = (Pmac,)
+    TemplateFile = 'pmacVariableRead.template'
+
+
+@setPortArgInfo
+class pmacVariableReadLED(AutoSubstitution):
+    WarnMacros = False
+    Dependencies = (Pmac,)
+    TemplateFile = 'pmacVariableReadLED.template'
 
 
 @setPortArgInfo
@@ -980,13 +1018,9 @@ class RunCommand(Device):
 
 # hiding templates which are just used in includes so as to not
 # dirty the auto list of builder objects (is this the best way to do this?)
-class _hide1(AutoSubstitution):
+class _pmacDirectMotorTemplate(AutoSubstitution):
     TemplateFile = 'pmacDirectMotor.template'
 
 
-class _hide2(AutoSubstitution):
+class _pmacCsAxisTemplate(AutoSubstitution):
     TemplateFile = 'pmac_cs_axis.template'
-
-
-class _hide3(AutoSubstitution):
-    TemplateFile = 'pmacDirectMotor.template'

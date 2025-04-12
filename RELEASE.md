@@ -2,10 +2,10 @@ pmac Releases
 =============
 
 The latest untagged master branch can be obtained at
-https://github.com/dls-controls/pmac.
+https://github.com/DiamondLightSource/pmac.
 
 Tagged source code releases from 2-0 onward can be obtained at
-https://github.com/dls-controls/pmac/releases (earlier versions are not
+https://github.com/DiamondLightSource/pmac/releases (earlier versions are not
 recommended)
 
 The versions of EPICS base, asyn, and motor modules used for
@@ -15,6 +15,116 @@ site location of dependencies.
 
 Release Notes
 =============
+
+
+R2-6-5 (Nov 13, 2024)
+==========================
+### Changes
+* Fix velocity calculation from Velocity mode   - PR [#124](https://github.com/DiamondLightSource/pmac/pull/124)
+
+
+R2-6-4 (Oct 30, 2024)
+==========================
+### Changes
+* Fix CS feedrate truncation                    - PR [#121](https://github.com/DiamondLightSource/pmac/pull/121)
+* Fix motor offset updating CS                  - PR [#123](https://github.com/DiamondLightSource/pmac/pull/123)
+* Replaced dls-controls with DiamondLightSource - PR [#128](https://github.com/DiamondLightSource/pmac/pull/128)
+* Improve CPU load calculation                  - PR [#105](https://github.com/DiamondLightSource/pmac/pull/105)
+
+
+R2-6-3 (Jan 31, 2024)
+==========================
+### Changes
+* Add Busy dependency to Pmac   - PR [#120](https://github.com/DiamondLightSource/pmac/pull/120)
+
+R2-6-2 (Jan 15, 2023)
+==========================
+### Changes
+* Revert PR [#116](https://github.com/DiamondLightSource/pmac/pull/116) due to an introduced bug, that causes Segmentation Fault during the initialization.
+
+R2-6-1 (Nov 15, 2023)
+==========================
+### Changes
+* Fix AbortAll and KillAll for PowerPMAC        - PR [#112](https://github.com/DiamondLightSource/pmac/pull/112)
+* Update motor to 7-0dls9-1 in RELEASE.local    - PR [#115](https://github.com/DiamondLightSource/pmac/pull/115)
+* Motor offset update cs axes position value    - PR [#116](https://github.com/DiamondLightSource/pmac/pull/116)
+* Abstract Global status bits                   - PR [#114](https://github.com/DiamondLightSource/pmac/pull/114)
+
+R2-6-1 (Nov 15, 2023)
+==========================
+### Changes
+* Fix AbortAll and KillAll for PowerPMAC        - PR [#112](https://github.com/DiamondLightSource/pmac/pull/112)
+* Update motor to 7-0dls9-1 in RELEASE.local    - PR [#115](https://github.com/DiamondLightSource/pmac/pull/115)
+* Motor offset update cs axes position value    - PR [#116](https://github.com/DiamondLightSource/pmac/pull/116)
+* Abstract Global status bits                   - PR [#114](https://github.com/DiamondLightSource/pmac/pull/114)
+
+R2-6-0 (Oct 18, 2023)
+==========================
+### Changes
+* Remove harcoded PVs for symetrie heaxapod summary screen - PR #100
+* Enhanced PVT trajectories scan to add capabilitiy to receive the velocities, and moved velocities calculation from motion program to driver - PR #102
+* Fix low-level SSH driver for ARM PowerPMACs - PR #103
+* Add support for CPU load reading for PowerPMACs
+* Fix bug in geobrickette_motion_stop
+* Remove round function dependency
+
+
+R2-5-16 (May 26, 2022)
+==========================
+### Changes
+* A fix in 2-5-10 caused the .REP field to just show the following error when the encoder is on the same
+  axis (versus another channel). Previous behaviour has now been restored for this type of axis:
+    * .RMP is reported position plus following error
+    * .REP is reported position without following error
+    * This allows the following error and max following error records to work again.
+
+R2-5-15 (May 26, 2022)
+==========================
+### Changes
+* Soft limit behaviour has been changed in pmacController. When setting soft limits which result in
+either ix13 or ix14 being zero (i.e. not both) the soft limit is now set to 1 count to avoid disabling
+it. To disable soft limits you can set DHLM=DLLM=0, which is consistent with the motor record behaviour.
+
+R2-5-14 (May 3, 2022)
+==========================
+### Changes
+* pmacAxis: increase setting resolution and offset precision to 12 d.p. to fully fix loss of precision introduced in 2-5
+
+R2-5-13 (April 21, 2022)
+==========================
+### Changes
+* add pmacVariableRead screens
+
+R2-5-12 (April 19, 2022)
+==========================
+### Changes
+* pmacAxis: increase setting resolution and offset precision to 9 d.p. to partially fix loss of precision introduced in 2-5
+
+R2-5-11 (March 25, 2022)
+==========================
+### Changes
+* add CSS screens for aperture slits
+
+R2-5-10 (March 4, 2022)
+==========================
+### Changes
+* make simple-power-pmac non DLS dependent
+* add builder support for open loop encoder axis (Jira BC-1427)
+
+R2-5-9 (March 4, 2022)
+==========================
+### Changes
+* stop adding pmacVariableWrite screens when using symetrie_hexapod_CS screen
+
+R2-5-8 (November 15, 2021)
+==========================
+### Changes
+* add pmac_autohome.opi screen
+
+R2-5-7 (November 4, 2021)
+==========================
+### Changes
+* remove amplifier enabled and axis status power flags from check used to reset CS demand values
 
 R2-5-6 (September 22, 2021)
 ==========================

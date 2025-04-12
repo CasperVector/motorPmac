@@ -53,7 +53,11 @@
 
 #define PMAC_C_FastUpdateTimeString       "PMAC_C_FAST_UPDATE_TIME"
 
-#define PMAC_C_CpuUsageString             "PMAC_C_CPU_USAGE"
+#define PMAC_C_CpuNumCoresString          "PMAC_C_CPU_NUM_CORES"
+#define PMAC_C_CpuUsage0String            "PMAC_C_CPU_USAGE_0"
+#define PMAC_C_CpuUsage1String            "PMAC_C_CPU_USAGE_1"
+#define PMAC_C_CpuUsage2String            "PMAC_C_CPU_USAGE_2"
+#define PMAC_C_CpuUsage3String            "PMAC_C_CPU_USAGE_3"
 #define PMAC_C_AxisCSString               "PMAC_C_AXIS_CS"
 #define PMAC_C_AxisReadonlyString         "PMAC_C_AXIS_READONLY"
 #define PMAC_C_WriteCmdString             "PMAC_C_WRITE_CMD"
@@ -123,6 +127,23 @@
 #define PMAC_C_ProfilePositionsXString    "PROFILE_POSITIONS_X"
 #define PMAC_C_ProfilePositionsYString    "PROFILE_POSITIONS_Y"
 #define PMAC_C_ProfilePositionsZString    "PROFILE_POSITIONS_Z"
+#define PMAC_C_ProfileVelocitiesAString   "PROFILE_VELOCITIES_A"
+#define PMAC_C_ProfileVelocitiesBString   "PROFILE_VELOCITIES_B"
+#define PMAC_C_ProfileVelocitiesCString   "PROFILE_VELOCITIES_C"
+#define PMAC_C_ProfileVelocitiesUString   "PROFILE_VELOCITIES_U"
+#define PMAC_C_ProfileVelocitiesVString   "PROFILE_VELOCITIES_V"
+#define PMAC_C_ProfileVelocitiesWString   "PROFILE_VELOCITIES_W"
+#define PMAC_C_ProfileVelocitiesXString   "PROFILE_VELOCITIES_X"
+#define PMAC_C_ProfileVelocitiesYString   "PROFILE_VELOCITIES_Y"
+#define PMAC_C_ProfileVelocitiesZString   "PROFILE_VELOCITIES_Z"
+#define PMAC_C_CompTable0_WString         "PMAC_C_COMP_0"
+#define PMAC_C_CompTable1_WString         "PMAC_C_COMP_1"
+#define PMAC_C_CompTable2_WString         "PMAC_C_COMP_2"
+#define PMAC_C_CompTable3_WString         "PMAC_C_COMP_3"
+#define PMAC_C_CompTable4_WString         "PMAC_C_COMP_4"
+#define PMAC_C_CompTable5_WString         "PMAC_C_COMP_5"
+#define PMAC_C_CompTable6_WString         "PMAC_C_COMP_6"
+#define PMAC_C_CompTable7_WString         "PMAC_C_COMP_7"
 #define PMAC_C_ProfileAppendString        "PROFILE_APPEND"
 #define PMAC_C_ProfileAppendStateString   "PROFILE_APPEND_STATE"
 #define PMAC_C_ProfileAppendStatusString  "PROFILE_APPEND_STATUS"
@@ -148,10 +169,11 @@
 #define PMAC_C_TrajPercentString          "PMAC_C_TRAJ_PERCENT" // Percentage of scan complete
 #define PMAC_C_TrajEStatusString          "PMAC_C_TRAJ_ESTATUS" // Our report of tScan status
 #define PMAC_C_TrajProgString             "PMAC_C_TRAJ_PROG"    // Which motion program to execute
+#define PMAC_C_TrajCalcVelString          "PMAC_TRAJ_CALCVEL"   // Velocity array calculation - 0: No calculation - receives velocities directly; 1: Calculate - calculate the velocities base on time, position and velocity mode
 #define PMAC_C_TrajProgVersionString      "PMAC_C_TRAJ_PROG_V"  // Motion program version number
 #define PMAC_C_TrajCodeVersionString      "PMAC_C_TRAJ_CODE_V"  // Version of this control code
 
-#define PMAC_TRAJECTORY_VERSION 3
+#define PMAC_TRAJECTORY_VERSION 4
 
 #define PMAC_CPU_GEO_240MHZ               "DSP56321"            // Approved geobrick for trajectory scans
 #define PMAC_CPU_CLIPPER                  "DSP56303"            // Allowed for trajectory scans
@@ -172,12 +194,28 @@
 
 #define PMAC_PVT_TIME_MODE       "I42"   // PVT Time Control Mode (0=4,095 ms max time, 1=8,388,607 ms max time)
 
-#define PMAC_CPU_PHASE_INTR      "M70" // Time between phase interrupts (CPU cycles/2)
-#define PMAC_CPU_PHASE_TIME      "M71" // Time for phase tasks (CPU cycles/2)
-#define PMAC_CPU_SERVO_TIME      "M72" // Time for servo tasks (CPU cycles/2)
-#define PMAC_CPU_RTI_TIME        "M73" // Time for RTI tasks (CPU cycles/2)
-#define PMAC_CPU_I8              "I8"
-#define PMAC_CPU_I7002           "I7002"
+#define PMAC_CPU_PHASE_INTR      "M70"   // Time between phase interrupts (CPU cycles/2)
+#define PMAC_CPU_PHASE_TIME      "M71"   // Time for phase tasks (CPU cycles/2)
+#define PMAC_CPU_SERVO_TIME      "M72"   // Time for servo tasks (CPU cycles/2)
+#define PMAC_CPU_RTI_TIME        "M73"   // Time for RTI tasks (CPU cycles/2)
+#define PMAC_CPU_I8              "I8"    // RTI period (Servo cycles - 1)
+#define PMAC_CPU_I7002           "I7002" // Servo clock divider (ServoClockFreq = PhaseClockFreq/(ServoClockDiv + 1) )
+
+#define PPMAC_CPU_FPHASE_TIME    "Sys.FltrPhaseTime"
+#define PPMAC_CPU_FSERVO_TIME    "Sys.FltrServoTime"
+#define PPMAC_CPU_FRTI_TIME      "Sys.FltrRtIntTime"
+#define PPMAC_CPU_FBG_TIME       "Sys.FltrBgTime"
+#define PPMAC_CPU_PHASED_TIME    "Sys.PhaseDeltaTime"
+#define PPMAC_CPU_SERVOD_TIME    "Sys.ServoDeltaTime"
+#define PPMAC_CPU_RTID_TIME      "Sys.RtIntDeltaTime"
+#define PPMAC_CPU_BGD_TIME       "Sys.BgDeltaTime"
+
+#define PPMAC_CPU_MAXCORES      4 // Maximum number of cores currently supported
+#define PPMAC_CPU_TASKS_NUM     4 // Number of tasks supported by the PowerPMAC core management
+#define PPMAC_CPU_PHASETASK     0 // Highest priority task
+#define PPMAC_CPU_SERVOTASK     1 // ...
+#define PPMAC_CPU_RTTASK        2 // ...
+#define PPMAC_CPU_BGTASK        3 // Lowest priority task
 
 #define PMAC_TRAJ_STATUS         "M4034" // Status of motion program for EPICS - 0: Idle, 1: Running, 2: Finished, 3: Error
 #define PMAC_TRAJ_ABORT          "M4035" // Abort trigger for EPICS
@@ -192,13 +230,16 @@
 #define PMAC_TRAJ_BUFF_FILL_A    "M4044" // Fill level of buffer A
 #define PMAC_TRAJ_BUFF_FILL_B    "M4045" // Fill level of buffer B
 #define PMAC_TRAJ_CURR_FILL      "M4046" // The indexes that current buffer has been filled up to
-#define PMAC_TRAJ_PROG_VERSION   "M4049" // The indexes that current buffer has been filled up to
+#define PMAC_TRAJ_PROG_VERSION   "M4049" // Trajectory program version
 
 #define PMAC_TRAJ_BUFFER_A 0
 #define PMAC_TRAJ_BUFFER_B 1
 
 #define PMAC_TRAJ_STATUS_RUNNING 1
 #define PMAC_TRAJ_STATUS_FINISHED 2
+
+#define PMAC_TRAJ_VELOCITY_PROVIDED 0
+#define PMAC_TRAJ_VELOCITY_CALCULATED 1
 
 class pmacCSMonitor;
 
@@ -233,6 +274,10 @@ public:
                                     const std::string &response,
                                     const std::string &desc,
                                     int &value);
+    asynStatus parseDoubleVariable(const std::string &command,
+                                    const std::string &response,
+                                    const std::string &desc,
+                                    double &value);
 
     //asynStatus printConnectedStatus(void);
     asynStatus immediateWriteRead(const char *command, char *response);
@@ -255,6 +300,7 @@ public:
 
     // Trajectory scanning methods
     asynStatus initializeProfile(size_t maxPoints);
+    asynStatus handleBufferRollover(int *numPointsToBuild);
     asynStatus buildProfile();
     asynStatus buildProfile(int csNo);
     asynStatus appendToProfile();
@@ -297,12 +343,20 @@ public:
     // Read out the device type (cid)
     asynStatus readDeviceType();
 
+    // Set number of CPU cores based on CPU type
+    asynStatus getCpuNumCores();
+
+    // Get CPU core for each task
+    asynStatus getTasksCore();
+
     // List PLC program
     asynStatus listPLCProgram(int plcNo, char *buffer, size_t size);
     asynStatus executeManualGroup();
     asynStatus updateCsAssignmentParameters();
     asynStatus copyCsReadbackToDemand(bool manual);
-    asynStatus tScanBuildProfileArray(double *positions, int axis, int numPoints);
+    asynStatus tScanBuildProfileArray(double *positions, double *velocities, double *times, int axis, int numPoints);
+    asynStatus tScanGetPreviousPoint(double *previousPos, double *previousVel, const double *positions, const double *velocities, int numPoints, int index, int csNum, int axis);
+    asynStatus tScanCalculateVelocityArray(double *positions, double *velocities, double *times, int numPoints, int index, int csNum, int axis);
     asynStatus tScanIncludedAxes(int *axisMask);
     void registerForLock(asynPortDriver *controller);
 
@@ -333,7 +387,11 @@ protected:
     int PMAC_C_DebugCmd_;
     int PMAC_C_DisablePolling_;
     int PMAC_C_FastUpdateTime_;
-    int PMAC_C_CpuUsage_;
+    int PMAC_C_CpuNumCores_;
+    int PMAC_C_CpuUsage0_;
+    int PMAC_C_CpuUsage1_;
+    int PMAC_C_CpuUsage2_;
+    int PMAC_C_CpuUsage3_;
     int PMAC_C_AxisCS_;
     int PMAC_C_AxisReadonly_;
     int PMAC_C_WriteCmd_;
@@ -367,6 +425,23 @@ protected:
     int PMAC_C_ProfilePositionsX_;
     int PMAC_C_ProfilePositionsY_;
     int PMAC_C_ProfilePositionsZ_;
+    int PMAC_C_ProfileVelocitiesA_;
+    int PMAC_C_ProfileVelocitiesB_;
+    int PMAC_C_ProfileVelocitiesC_;
+    int PMAC_C_ProfileVelocitiesU_;
+    int PMAC_C_ProfileVelocitiesV_;
+    int PMAC_C_ProfileVelocitiesW_;
+    int PMAC_C_ProfileVelocitiesX_;
+    int PMAC_C_ProfileVelocitiesY_;
+    int PMAC_C_ProfileVelocitiesZ_;
+    int PMAC_C_CompTable0_W;
+    int PMAC_C_CompTable1_W;
+    int PMAC_C_CompTable2_W;
+    int PMAC_C_CompTable3_W;
+    int PMAC_C_CompTable4_W;
+    int PMAC_C_CompTable5_W;
+    int PMAC_C_CompTable6_W;
+    int PMAC_C_CompTable7_W;
     int PMAC_C_ProfileAppend_;
     int PMAC_C_ProfileAppendState_;
     int PMAC_C_ProfileAppendStatus_;
@@ -390,6 +465,7 @@ protected:
     int PMAC_C_TrajPercent_;
     int PMAC_C_TrajEStatus_;
     int PMAC_C_TrajProg_;
+    int PMAC_C_TrajCalcVel_;
     int PMAC_C_TrajProgVersion_;
     int PMAC_C_TrajCodeVersion_;
     int PMAC_C_NoOfMsgs_;
@@ -437,6 +513,8 @@ private:
     int initialised_;
     int cid_;
     std::string cpu_;
+    int cpuNumCores_;
+    int cpuCoreTasks_[PPMAC_CPU_TASKS_NUM];
     int parameterIndex_;
     pmacMessageBroker *pBroker_;
     pmacTrajectory *pTrajectory_;
@@ -464,6 +542,7 @@ private:
     bool csResetAllDemands;
     int csCount;
 
+
     // Trajectory scan variables
     int pvtTimeMode_;
     bool profileInitialized_;
@@ -485,8 +564,25 @@ private:
     double tScanPmacProgVersion_;
     double **eguProfilePositions_;  // 2D array of profile positions in EGU (1 array for each axis)
     double **tScanPositions_;       // 2D array of profile positions (1 array for each axis)
+    double **eguProfileVelocities_; // 2D array of profile velocities in EGU (1 array for each axis)
+    double **tScanVelocities_;      // 2D array of profile velocities (1 array for each axis)
     int *profileUser_;              // Array of profile user values
     int *profileVelMode_;           // Array of profile velocity modes
+    enum ProfileVelocityMode {      // Profile Velocity Modes - used in the velocity calculation
+        AVERAGE_PREVIOUS_NEXT,      // 0
+        REAL_PREVIOUS_CURRENT,      // 1
+        AVERAGE_PREVIOUS_CURRENT,   // 2
+        ZERO_VELOCITY,              // 3
+        AVERAGE_CURRENT_NEXT        // 4
+    };
+    // Used to handle the buffer rollover when the velocities
+    // are calculated from profileVelMode_
+    int tScanPendingPoint_;
+    int tScanPendingPointReady_;
+    double **tScanPrevBufferPositions;  // 2D array for storing the last 2 positions of the buffer (1 array for each axis)
+    double *tScanPrevBufferVelocity;    // Array for storing the last position of the buffer of each axis
+    double tScanPrevBufferTime;         // Stores the last time of the buffer
+
     epicsEventId startEventId_;
     epicsEventId stopEventId_;
 
@@ -553,33 +649,6 @@ private:
     static const epicsUInt32 PMAC_STATUS2_NA14;
     static const epicsUInt32 PMAC_STATUS2_ASSIGNED_CS;
 
-    /*Global status ???*/
-    static const epicsUInt32 PMAC_GSTATUS_CARD_ADDR;
-    static const epicsUInt32 PMAC_GSTATUS_ALL_CARD_ADDR;
-    static const epicsUInt32 PMAC_GSTATUS_RESERVED;
-    static const epicsUInt32 PMAC_GSTATUS_PHASE_CLK_MISS;
-    static const epicsUInt32 PMAC_GSTATUS_MACRO_RING_ERRORCHECK;
-    static const epicsUInt32 PMAC_GSTATUS_MACRO_RING_COMMS;
-    static const epicsUInt32 PMAC_GSTATUS_TWS_PARITY_ERROR;
-    static const epicsUInt32 PMAC_GSTATUS_CONFIG_ERROR;
-    static const epicsUInt32 PMAC_GSTATUS_ILLEGAL_LVAR;
-    static const epicsUInt32 PMAC_GSTATUS_REALTIME_INTR;
-    static const epicsUInt32 PMAC_GSTATUS_FLASH_ERROR;
-    static const epicsUInt32 PMAC_GSTATUS_DPRAM_ERROR;
-    static const epicsUInt32 PMAC_GSTATUS_CKSUM_ACTIVE;
-    static const epicsUInt32 PMAC_GSTATUS_CKSUM_ERROR;
-    static const epicsUInt32 PMAC_GSTATUS_LEADSCREW_COMP;
-    static const epicsUInt32 PMAC_GSTATUS_WATCHDOG;
-    static const epicsUInt32 PMAC_GSTATUS_SERVO_REQ;
-    static const epicsUInt32 PMAC_GSTATUS_DATA_GATHER_START;
-    static const epicsUInt32 PMAC_GSTATUS_RESERVED2;
-    static const epicsUInt32 PMAC_GSTATUS_DATA_GATHER_ON;
-    static const epicsUInt32 PMAC_GSTATUS_SERVO_ERROR;
-    static const epicsUInt32 PMAC_GSTATUS_CPUTYPE;
-    static const epicsUInt32 PMAC_GSTATUS_REALTIME_INTR_RE;
-    static const epicsUInt32 PMAC_GSTATUS_RESERVED3;
-
-    static const epicsUInt32 PMAC_HARDWARE_PROB;
     static const epicsUInt32 PMAX_AXIS_GENERAL_PROB1;
     static const epicsUInt32 PMAX_AXIS_GENERAL_PROB2;
 
