@@ -1,4 +1,6 @@
-file "myPmacController.db"
+# msi -I /opt/epics/motor/modules/motorPmac/pmacApp/Db -o pmac_motor.db -S pmac_motor.substitutions
+
+file "myPmacController.template"
 {
 pattern { NAXES, FEEDRATE, CSG0, CSG1, CSG2, CSG3, CSG4, CSG5, CSG6, CSG7 }
 { "8", "100", "1,2->A,B", "3,4->I", "MIXED CS3", "MIXED CS2", "", "", "", "" }
@@ -17,7 +19,7 @@ pattern { AXIS }
 { "8" }
 }
 
-file "my_pmac_asyn_motor.db"
+file "my_pmac_asyn_motor.template"
 {
 pattern { ADDR, DESC, MRES, VELO, PREC, EGU, TWV, DIR, VBAS, VMAX, ACCL, BDST, BVEL, BACC, DHLM, DLLM, HLM, LLM, HLSV, INIT, SREV, RRES, ERES, JAR, UEIP, URIP, RDBL, RLNK, RTRY, DLY, OFF, RDBD, FOFF, ADEL, NTM, FEHIGH, FEHIHI, FEHHSV, FEHSV, SCALE, HOME, ALLOW_HOMED_SET }
 { "1", "Motor 1->A", "1", "20", "3", "mm", "50", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1", "$(PMAC)", "#" }
@@ -30,7 +32,7 @@ pattern { ADDR, DESC, MRES, VELO, PREC, EGU, TWV, DIR, VBAS, VMAX, ACCL, BDST, B
 { "8", "Motor 8", "0.001", "20", "3", "mm", "10", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", "", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1", "$(PMAC)", "#" }
 }
 
-file "pmacCsController.db"
+file "pmacCsController.template"
 {
 pattern { PARENTPORT, PORT, CS }
 { "Brick", "CS1", "1" }
@@ -38,7 +40,7 @@ pattern { PARENTPORT, PORT, CS }
 { "Brick", "CS3", "3" }
 }
 
-file "my_pmac_cs_asyn_motor.db"
+file "my_pmac_cs_asyn_motor.template"
 {
 pattern { PORT, CS, ADDR, DESC, MRES, VELO, PREC, EGU, TWV, DIR, VBAS, VMAX, ACCL, BDST, BVEL, BACC, DHLM, DLLM, HLM, LLM, HLSV, INIT, SREV, RRES, ERES, JAR, UEIP, URIP, RDBL, RLNK, RTRY, DLY, OFF, RDBD, FOFF, ADEL, NTM, FEHIGH, FEHIHI, FEHHSV, FEHSV, SCALE }
 { "CS2", "2", "1", "CS2 1->A", "0.0001", "20", "3", "mm", "1", "0", "0", "$(VELO)", "0.5", "0", "0", "", "10000", "-10000", "", "", "MAJOR", "", "1000", "", "", "", "0", "0", "", " ", "0", "0", "0", "", "0", "0", "1", "0", "0", "NO_ALARM", "NO_ALARM", "1" }
@@ -55,7 +57,7 @@ pattern { NPOINTS, NAxes, MAXPOINTS, PREC }
 { "10000", "8", "4000000", "3" }
 }
 
-file "my_autohome.db"
+file "my_autohome.template"
 {
 pattern { PLC, GRP1, GRP2, GRP3, GRP4, GRP5, GRP6, GRP7, GRP8, GRP9, GRP10, STATE11, STATE12, STATE13, STATE14, STATE15, STATUS11, STATUS12, STATUS13, STATUS14, STATUS15, STATUSSV11, STATUSSV12, STATUSSV13, STATUSSV14, STATUSSV15, DESC }
 { "10", "All", "Axis1", "Axis2", "Axis3", "Axes4-8", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "NO_ALARM", "NO_ALARM", "NO_ALARM", "NO_ALARM", "NO_ALARM", "" }

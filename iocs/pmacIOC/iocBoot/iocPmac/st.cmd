@@ -65,6 +65,6 @@ pmacSetCoordStepsPerUnit("CS2", 2, 100)
 
 # For Non-Power PMAC, use myPmacStatus.template instead
 dbLoadRecords("myPowerPmacStatus.db", "PMAC=BRICK1,PORT=Brick")
-dbLoadTemplate("pmac_motor.substitutions", "PMAC=BRICK1,PORT=Brick,SPORT=BRICK1port,TIMEOUT=4")
+dbLoadRecords("pmac_motor.db", "PMAC=BRICK1,PORT=Brick,SPORT=BRICK1port,TIMEOUT=4")
 iocInit
 
