@@ -1509,9 +1509,14 @@ asynStatus pmacController::mediumUpdate(pmacCommandStore *sPtr) {
       if (sPtr->checkForItem(cs_cmd)) {
         const std::string result = pHardware_->parseCSMappingResult(
                 sPtr->readValue(cs_cmd));
-        debugf(DEBUG_VARIABLE, functionName, "Axis %d CS %d assignment: %s",
-                axis, axisCs, result.c_str());
-        setStringParam(axis, PMAC_C_GroupAssignRBV_, result.c_str());
+        if (result[0] >= 'A' && result[0] <= 'Z' && !result[1]) {
+          debugf(DEBUG_VARIABLE, functionName, "Axis %d CS %d assignment: %s",
+                  axis, axisCs, result.c_str());
+          setStringParam(axis, PMAC_C_GroupAssignRBV_, result.c_str());
+        } else {
+          debugf(DEBUG_ERROR, functionName, "Problem reading Axis %d CS %d assignment: %s",
+                  axis, axisCs, result.c_str());
+        }
       } else {
         sPtr->addItem(cs_cmd);
       }
