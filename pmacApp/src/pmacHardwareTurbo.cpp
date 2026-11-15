@@ -15,6 +15,8 @@ const std::string pmacHardwareTurbo::CS_VEL_CMD = "&%dQ70=%f ";
 const std::string pmacHardwareTurbo::CS_ACCELERATION_CMD = "I%d87=%f";
 const std::string pmacHardwareTurbo::CS_AXIS_MAPPING = "&%d#%d->,";
 const std::string pmacHardwareTurbo::CS_ENABLED_COUNT = "I68";
+const std::string pmacHardwareTurbo::AXIS_MASTER_CONTROL_CMD = "I%d06";
+
 
 const int pmacHardwareTurbo::PMAC_STATUS1_MAXRAPID_SPEED = (0x1 << 0);
 const int pmacHardwareTurbo::PMAC_STATUS1_ALT_CMNDOUT_MODE = (0x1 << 1);
@@ -363,8 +365,24 @@ std::string pmacHardwareTurbo::parseCSMappingResult(const std::string mappingRes
   return mappingResult;
 }
 
+std::string pmacHardwareTurbo::getMasterControlCmd(int axis) {
+  char cmd[255];
+  static const char *functionName = "getMasterControlCmd";
+
+  debugf(DEBUG_FLOW, functionName, "Axis %d", axis);
+  sprintf(cmd, AXIS_MASTER_CONTROL_CMD.c_str(), axis);
+  return std::string(cmd);
+}
+
+void pmacHardwareTurbo::getTimeAddr(int *timeOffset, int addr, int buffSize) {
+  static const char *functionName = "getTimeAddr";
+
+  debugf(DEBUG_FLOW, functionName, "base addr %d", addr);
+  *timeOffset = addr + buffSize;
+}
+
 void pmacHardwareTurbo::startTrajectoryTimePointsCmd(char *user_cmd, char *time_cmd,
-                                                     int addr) {
+                                                     int addr, int) {
   static const char *functionName = "startTrajectoryTimePointsCmd";
 
   debug(DEBUG_FLOW, functionName, "addr %d", addr);
@@ -377,12 +395,21 @@ void pmacHardwareTurbo::addTrajectoryTimePointCmd(char *userCmd, char *timeCmd,
                                                   int userFunc, int time,
                                                   bool ) {
   static const char *functionName = "addTrajectoryTimePointCmd";
+  char bufferUser[16];
 
   debugf(DEBUG_FLOW, functionName, "userCmd %s\ntimeCmd %s\nuser %d, time %d",
          userCmd, timeCmd, userFunc, time);
 
-  sprintf(userCmd, "%s,$%01X%06X", userCmd, userFunc, time);
+  snprintf(bufferUser, sizeof(bufferUser), ",$%01X%06X", userFunc, time);
+  strncat(userCmd, bufferUser, 1024 - strlen(userCmd) -1);
   timeCmd[0] = 0;
+}
+
+void pmacHardwareTurbo::getAxisAddr(int *axisAddr, int addr, int buffSize) {
+  static const char *functionName = "getAxisAddr";
+
+  debugf(DEBUG_FLOW, functionName, "base addr %d", addr);
+  *axisAddr = addr + buffSize;
 }
 
 void pmacHardwareTurbo::startAxisPointsCmd(char *axisCmd, int axis, int addr, int buffSize, bool posCmd) {
@@ -401,10 +428,13 @@ void pmacHardwareTurbo::addAxisPointCmd(char *axisCmd, int , double pos, int ,
         bool ) {
   int64_t ival = 0;
   static const char *functionName = "addAxisPointCmd";
+  char bufferPos[64];
 
   debugf(DEBUG_FLOW, functionName, "cmd %s, pos %f", axisCmd, pos);
   doubleToPMACFloat(pos, &ival);
-  sprintf(axisCmd, "%s,$%lX", axisCmd, (long) ival);
+
+  snprintf(bufferPos, sizeof(bufferPos), ",$%lX", (long) ival);
+  strncat(axisCmd, bufferPos, 1024 - strlen(axisCmd) - 1);
 }
 
 std::string pmacHardwareTurbo::getCSEnableCommand(int csNo) {

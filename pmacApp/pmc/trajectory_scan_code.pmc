@@ -161,10 +161,13 @@ N102
         Z_Vel = Next_Z_Vel
     End If
 
+    ; All Current <- Next shifts done so now
+    ; increment the 'next pointer'
+    ; Calculated base is the index into all 'Next' Arrays and
+    ; Current Index is incremented at each iteration
     CalculatedBase = CurrentBufferAdr + CurrentIndex
     Time_Adr = CalculatedBase
     User_Adr = CalculatedBase
-
     A_Adr = CalculatedBase + BufferLength
     B_Adr = A_Adr + BufferLength
     C_Adr = B_Adr + BufferLength
@@ -184,6 +187,7 @@ N102
     X_Vel_Adr = W_Vel_Adr + BufferLength
     Y_Vel_Adr = X_Vel_Adr + BufferLength
     Z_Vel_Adr = Y_Vel_Adr + BufferLength
+
 Return
 
 ; Subroutine 3 ************************************************************************************

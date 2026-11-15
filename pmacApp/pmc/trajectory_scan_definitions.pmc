@@ -92,8 +92,8 @@ Next_Z_Vel->L:$BufferAdr
 
 Time_Adr->Y$4FA0,0,24                               ; Assignments for pointers to M address locations
 A_Adr->Y:$4FA1,0,24                                 ; M0 = $4000 -> M4000 = $4FA0
-B_Adr->Y:$4FA2,0,24
-C_Adr->Y:$4FA3,0,24
+B_Adr->Y:$4FA2,0,24                                 ; As described in Turbo PMAC User Manual -
+C_Adr->Y:$4FA3,0,24                                 ; "Use for Indirect Addressing" - , p.247
 U_Adr->Y:$4FA4,0,24
 V_Adr->Y:$4FA5,0,24
 W_Adr->Y:$4FA6,0,24

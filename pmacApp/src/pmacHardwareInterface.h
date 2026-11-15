@@ -81,17 +81,23 @@ public:
     virtual std::string getCSAccTimeCmd(int csNo, double time) = 0;
 
     virtual std::string getCSMappingCmd(int csNo, int axis) = 0;
+    
+    virtual std::string getMasterControlCmd(int axis) = 0;
 
     virtual std::string getCSEnabledCountCmd() = 0;
 
     virtual std::string parseCSMappingResult(const std::string mappingResult) = 0;
 
+    virtual void getTimeAddr(int *timeAddr, int addr, int buffSize) = 0;
+
     virtual void startTrajectoryTimePointsCmd(char *user_cmd, char *time_cmd,
-                                              int addr) = 0;
+                                              int addr, int buffSize) = 0;
 
     virtual void addTrajectoryTimePointCmd(char *userCmd, char *timeCmd,
                                            int userFunc, int time,
                                            bool firstVal) = 0;
+
+    virtual void getAxisAddr(int *axisAddr, int addr, int buffSize) = 0;
 
     virtual void startAxisPointsCmd(char *axis_cmd, int axis, int addr, int buffSize, bool posCmd) = 0;
 

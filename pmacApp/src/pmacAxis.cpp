@@ -64,6 +64,7 @@ pmacAxis::pmacAxis(pmacController *pC, int axisNo)
   asynPrint(pC_->pasynUserSelf, ASYN_TRACE_FLOW, "%s\n", functionName);
 
   //Initialize non-static data members
+  masterControl_= 0;
   assignedCS_ = 0;
   resolution_ = 1.0;
   offset_ = 0.0;
@@ -268,6 +269,24 @@ void pmacAxis::setOffset(double new_offset)
   }
 }
 
+void pmacAxis::setMasterControlState(int new_control_state) {
+  asynStatus status = asynError;
+  char command[PMAC_MAXBUF] = {0};
+  char response[PMAC_MAXBUF] = {0};
+  static const char *functionName = "setMasterControlState";
+  debug(DEBUG_TRACE, functionName, "Setting axis master position control", new_control_state);
+  if (this->connected_){
+    std::string master_control_cmd = pC_->pHardware_->getMasterControlCmd(this->axisNo_);
+    sprintf(command, "%s=%d", master_control_cmd.c_str(), new_control_state);
+    status = pC_->axisWriteRead(command, response);
+    if (status != asynSuccess) {
+      asynPrint(pC_->pasynUserSelf, ASYN_TRACE_ERROR,
+                "Controller %s Axis %d. %s: setMasterControlState failed to return asynSuccess.\n",
+                pC_->portName, axisNo_, functionName);
+    }
+  }
+}
+
 double pmacAxis::getOffset()
 {
   return this->offset_;
@@ -317,9 +336,11 @@ asynStatus pmacAxis::move(double position, int relative, double min_velocity, do
       }
     }
 
-    if (pC_->movesDeferred_ == 0) {
+    if ((pC_->movesDeferred_ == 0) && (this->masterControl_ == 0)) {
       sprintf(command, "%s%s#%d %s%.2f", vel_buff, acc_buff, axisNo_,
               (relative ? "J^" : "J="), position / scale_);
+    } else if (this->masterControl_ != 0){
+      debug(DEBUG_ERROR, functionName, "Axis move ignore, as axis is in following mode", command);
     } else { /* deferred moves */
       sprintf(command, "%s%s", vel_buff, acc_buff);
       deferredPosition_ = position / scale_;
@@ -947,7 +968,6 @@ asynStatus pmacAxis::poll(bool *moving) {
 
   return status;
 }
-
 
 int pmacAxis::getAxisCSNo() {
   return assignedCS_;

@@ -39,16 +39,22 @@ public:
 
     std::string getCSMappingCmd(int csNo, int axis);
 
+    std::string getMasterControlCmd(int axis);
+
     std::string getCSEnabledCountCmd();
 
     std::string parseCSMappingResult(const std::string mappingResult);
 
+    void getTimeAddr(int *timeAddr, int addr, int buffSize);
+
     void startTrajectoryTimePointsCmd(char *user_cmd, char *time_cmd,
-                                      int addr);
+                                      int addr, int buffSize);
 
     void addTrajectoryTimePointCmd(char *userCmd, char *timeCmd,
                                    int userFunc, int time,
                                    bool firstVal);
+
+    void getAxisAddr(int *axisAddr, int addr, int buffSize);
 
     void startAxisPointsCmd(char *axis_cmd, int axis, int addr, int buffSize, bool posCmd);
 
@@ -67,6 +73,8 @@ private:
     static const std::string CS_ACCELERATION_CMD;
     static const std::string CS_AXIS_MAPPING;
     static const std::string CS_ENABLED_COUNT;
+    static const std::string AXIS_MASTER_CONTROL_CMD;
+
 
     static const int PMAC_STATUS1_MAXRAPID_SPEED;
     static const int PMAC_STATUS1_ALT_CMNDOUT_MODE;

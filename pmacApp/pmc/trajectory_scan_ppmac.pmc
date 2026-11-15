@@ -1,7 +1,471 @@
-; *****************************************************************************************
-; Set these values for your PMAC
-; *****************************************************************************************
-#define BuffLen      2000  ; Length of buffers
+// *****************************************************************************************
+// Variables
+// *****************************************************************************************
+#define BuffAddr      4000          // >8 to keep first byte unused - $8 used by AxesParser
+#define BuffLen       2000          // Length of buffers
+#define DoubleBuffLen 2*BuffLen     // BuffAddr + DoubleBuffLen * (2*sizeof(int)+18*sizeof(double)) <= User Buffer size
 
-#include "./trajectory_scan_definitions_ppmac.pmc"
-#include "./trajectory_scan_code_ppmac.pmc"
+// *****************************************************************************************
+// Set these values for your PMAC
+// *****************************************************************************************
+#define PROG_TrajectoryScan   1     // Which motion program to use for scanning
+#define VersionNum            5     // Version of this trajectory scan program
+
+
+// *****************************************************************************************
+// Set variable types sizes
+// *****************************************************************************************
+#define _SIZEOF_DOUBLE_         8
+#define _SIZEOF_INTEGER_		4
+#define _SIZEOF_UNSIGNED_		4
+
+// *****************************************************************************************
+// These need to be defined to Sys.Idata/Ddata,to make the pointer increment work
+// *****************************************************************************************
+
+#define Next_User           Sys.Idata
+#define Next_Time           Sys.Idata
+
+#define Next_A              Sys.Ddata
+#define Next_B              Sys.Ddata
+#define Next_C              Sys.Ddata
+#define Next_U              Sys.Ddata
+#define Next_V              Sys.Ddata
+#define Next_W              Sys.Ddata
+#define Next_X              Sys.Ddata
+#define Next_Y              Sys.Ddata
+#define Next_Z              Sys.Ddata
+
+#define Next_A_Vel          Sys.Ddata
+#define Next_B_Vel          Sys.Ddata
+#define Next_C_Vel          Sys.Ddata
+#define Next_U_Vel          Sys.Ddata
+#define Next_V_Vel          Sys.Ddata
+#define Next_W_Vel          Sys.Ddata
+#define Next_X_Vel          Sys.Ddata
+#define Next_Y_Vel          Sys.Ddata
+#define Next_Z_Vel          Sys.Ddata
+
+// Specifiers for what axes are activated
+#define AxesParser          M4024
+#define A_Axis				M4025
+#define B_Axis				M4026
+#define C_Axis				M4027
+#define U_Axis				M4028
+#define V_Axis				M4029
+#define W_Axis				M4030
+#define X_Axis				M4031
+#define Y_Axis				M4032
+#define Z_Axis				M4033
+
+#define Time_Idx            L4000                   // Local variables to store Next_* coordinate indices
+#define A_Idx               L4001
+#define B_Idx               L4002
+#define C_Idx               L4003
+#define U_Idx               L4004
+#define V_Idx               L4005
+#define W_Idx               L4006
+#define X_Idx               L4007
+#define Y_Idx               L4008
+#define Z_Idx               L4009
+#define User_Idx            L4010
+
+#define A_Vel_Idx           L4085
+#define B_Vel_Idx           L4086
+#define C_Vel_Idx           L4087
+#define U_Vel_Idx           L4088
+#define V_Vel_Idx           L4089
+#define W_Vel_Idx           L4090
+#define X_Vel_Idx           L4091
+#define Y_Vel_Idx           L4092
+#define Z_Vel_Idx           L4093
+
+
+// User address 8 is the only memory location we allocate explicitly
+// Required to map bits in the word
+AxesParser->Sys.Udata[2]
+A_Axis->u.user:$8.0.1
+B_Axis->u.user:$8.1.1
+C_Axis->u.user:$8.2.1
+U_Axis->u.user:$8.3.1
+V_Axis->u.user:$8.4.1
+W_Axis->u.user:$8.5.1
+X_Axis->u.user:$8.6.1
+Y_Axis->u.user:$8.7.1
+Z_Axis->u.user:$8.8.1
+
+
+// *****************************************************************************************
+// EPICS Required Variables
+// *****************************************************************************************
+#define Traj_Status         M4034           // Status of motion program for EPICS
+
+#define Traj_StatusInitialised  0
+#define Traj_StatusActive       1
+#define Traj_StatusIdle         2
+#define Traj_StatusError        3
+
+#define AbortTrigger        M4035           // Abort trigger for EPICS
+#define Axes                M4036           // An int between 1 and 511 specifying which axes to use
+#define BufferLength        M4037           // Length of a single buffer e.g. AX, AY...
+#define TotalPoints         M4038           // Total number of points scanned through
+
+#define CurrentIndex        M4039           // Current index position in buffer
+#define CurrentBuffer       M4040           // Current buffer specifier - 0: A, 1: B
+
+#define BufferAdr_A         M4041           // Start index of buffer A
+#define BufferAdr_B         M4042           // Start index of buffer B
+#define CurrentBufferAdr    M4043           // A or B buffer address
+
+#define BufferFill_A        M4044           // Fill level of buffer A
+#define BufferFill_B        M4045           // Fill level of buffer B
+#define CurrentBufferFill   M4046           // A or B buffer fill level
+#define PrevBufferFill      M4047           // Fill level of previous buffer
+#define Error               M4048           // Error code  0: No error, 1: Invalid axes value,
+                                            // 2: Move time of 0, 3: Following error/ Run-time error
+#define Version             M4049           // Version number for motion program
+
+
+// for ppmac set the above M variables as self referenced double floats
+Traj_Status->*d
+AbortTrigger->*d
+Axes->*d
+BufferLength->*d
+TotalPoints->*d
+CurrentIndex->*d
+CurrentBuffer->*d
+BufferAdr_A->*d
+BufferAdr_B->*d
+CurrentBufferAdr->*d
+BufferFill_A->*d
+BufferFill_B->*d
+CurrentBufferFill->*d
+PrevBufferFill->*d
+Error->*d
+Version->*d
+
+// *****************************************************************************************
+// Motion Program Variables
+// *****************************************************************************************
+
+// Current coordinate values
+#define Current_A           Q71
+#define Current_B           Q72
+#define Current_C           Q73
+#define Current_U           Q74
+#define Current_V           Q75
+#define Current_W           Q76
+#define Current_X           Q77
+#define Current_Y           Q78
+#define Current_Z           Q79
+
+// Current velocity values
+#define A_Vel               Q11
+#define B_Vel               Q12
+#define C_Vel               Q13
+#define U_Vel               Q14
+#define V_Vel               Q15
+#define W_Vel               Q16
+#define X_Vel               Q17
+#define Y_Vel               Q18
+#define Z_Vel               Q19
+
+#define Readback_A          Q81
+#define Readback_B          Q82
+#define Readback_C          Q83
+#define Readback_U          Q84
+#define Readback_V          Q85
+#define Readback_W          Q86
+#define Readback_X          Q87
+#define Readback_Y          Q88
+#define Readback_Z          Q89
+
+global PVT_Time
+global UserCmd
+
+global CalculatedBase       // Calculated temporary variable for Current base address
+
+// *****************************************************************************************
+// Set the version number
+// *****************************************************************************************
+Version = VersionNum
+
+
+// *****************************************************************************************
+// Set-Up
+// *****************************************************************************************
+
+// Set Initial Values
+BufferLength = BuffLen                                                          // BuffLen defined in header file
+BufferAdr_A = BuffAddr                                                         // BufferAdr defined in header file
+BufferAdr_B = BufferAdr_A + BuffLen * (2*SIZEOF_INTEGER + 18*SIZEOF_DOUBLE)       // each individual array holds 2 buffers
+Traj_Status = Traj_StatusInitialised  // Traj_Status = 0
+AbortTrigger = 0
+Error = 0
+
+// *****************************************************************************************
+// Program
+// *****************************************************************************************
+
+Open PROG PROG_TrajectoryScan
+
+Abs
+FRAX(A,B,C,U,V,W,X,Y,Z)
+
+Traj_Status = Traj_StatusActive                     // Traj_Status = 1: Reset values to defaults
+AbortTrigger = 0
+Error = 0
+CurrentIndex = 0
+TotalPoints = 0
+
+CurrentBufferAdr = BufferAdr_A      // Set CurrentBuffer values to buffer A
+CurrentBufferFill = BufferFill_A
+CurrentBuffer = 0
+
+PrevBufferFill = BufferLength       // Set PrevBufferFill to pass outer while loop condition
+
+GoSub101                            // Check which axes are required
+GoSub103                            // Set addresses for required axes
+GoSub108                            // set all previous velocities to zero
+
+While(AbortTrigger == 0 && Error == 0 && CurrentBufferFill > 0 && PrevBufferFill == BufferLength)
+{
+    CurrentIndex = 1
+    // This loop ends when Current_* is at N-1 because then Next_* is at N
+    While(AbortTrigger == 0 && Error == 0 && CurrentIndex < CurrentBufferFill)
+    {
+        GoSub102                            // Shift values through Next_* -> Current_* -> Prev_*
+        GoSub103                            // Updates indices
+        GoSub104                            // Check time
+        GoSub110                            // Move axes
+        CurrentIndex = CurrentIndex + 1
+    }
+
+    GoSub102                                // Shift previous/current coordinates to N-1th/Nth points in buffer
+    GoSub103
+
+    // Toggle buffer - Change address & specifier, set new buffer fill, reset previous buffer fill
+    PrevBufferFill = CurrentBufferFill      // Update previous buffer fill - will exit while loop if it wasn't full
+    If(AbortTrigger == 0 && CurrentBufferFill == BufferLength)
+    {
+        If(CurrentBuffer == 0)
+        {
+            CurrentBufferAdr = BufferAdr_B
+            CurrentBuffer = 1
+            CurrentBufferFill = BufferFill_B
+            BufferFill_A = 0
+        }
+        Else
+		{
+            CurrentBufferAdr = BufferAdr_A
+            CurrentBuffer = 0
+            CurrentBufferFill = BufferFill_A
+            BufferFill_B = 0
+        }
+        // Move to final point of buffer if next buffer has points
+        If(AbortTrigger == 0 && CurrentBufferFill > 0)     // Do move with previous buffer N-1 and N and current buffer 1
+        {
+            CurrentIndex = 0                    // Reset to start of next buffer
+            GoSub103                            // Update Next_* addresses to 0th point of next buffer
+            GoSub104                            // Check time
+            GoSub110                            // Move axes to final point of previous buffer
+        }
+        Else
+        {
+            // Move to final point if the scan wasn't aborted
+            If(AbortTrigger == 0)
+            {
+                GoSub108                // Set velocity through final point to zero
+                GoSub110                // Move axes
+            }
+        }
+    }
+    Else
+    {
+        If(Traj_Status == Traj_StatusActive) // Traj_Status == 1
+		{
+            // Move to final point if the scan wasn't aborted
+            If(AbortTrigger == 0)
+            {
+                GoSub108                // Set velocity through final point to zero
+                GoSub110                // Move axes
+            }
+        }
+    }
+}
+
+Dwell 0                         // Stop program aborting before above lines are complete
+// Traj_Status == 1: Set Idle Status if no error occurred
+If(Traj_Status == Traj_StatusActive)
+{
+    Traj_Status = Traj_StatusIdle // Traj_Status = 2: Set program finished (Idle status)
+}
+Dwell 200                       // Ensure the driver receives an updated status before killing the program
+Return
+
+// Subroutine 1 ************************************************************************************
+// Check that axes value is valid and activate required axes. The *_Axis values point to the bits of
+// AxesParser and therefore represent axis activation
+// *************************************************************************************************
+N101:
+    If(Axes > 511)
+    {
+        Traj_Status = Traj_StatusError // Traj_Status = 3
+        Error = 1
+    }
+    Else
+    {
+        AxesParser = Axes   // Set bit parsed address to set required axes
+    }
+Return
+
+// Subroutine 2 ************************************************************************************
+// Shift coordinate buffer through// Current -> Prev and then Next -> Current
+// *************************************************************************************************
+
+N102:
+    PVT_Time = Next_Time[Time_Idx]
+    UserFunc = Next_User[User_Idx]
+
+    If(A_Axis == 1)
+    {
+        Current_A = Next_A[A_Idx]
+        A_Vel = Next_A_Vel[A_Vel_Idx]
+    }
+    If (B_Axis == 1)
+    {
+        Current_B = Next_B[B_Idx]
+        B_Vel = Next_B_Vel[B_Vel_Idx]
+    }
+    If (C_Axis == 1)
+    {
+        Current_C = Next_C[C_Idx]
+        C_Vel = Next_C_Vel[C_Vel_Idx]
+    }
+    If (U_Axis == 1)
+    {
+        Current_U = Next_U[U_Idx]
+        U_Vel = Next_U_Vel[U_Vel_Idx]
+    }
+    If (V_Axis == 1)
+    {
+        Current_V = Next_V[V_Idx]
+        V_Vel = Next_V_Vel[V_Vel_Idx]
+    }
+    If (W_Axis == 1)
+    {
+        Current_W = Next_W[W_Idx]
+        W_Vel = Next_W_Vel[W_Vel_Idx]
+    }
+    If (X_Axis == 1)
+    {
+        Current_X = Next_X[X_Idx]
+        X_Vel = Next_X_Vel[X_Vel_Idx]
+    }
+    If (Y_Axis == 1)
+    {
+        Current_Y = Next_Y[Y_Idx]
+        Y_Vel = Next_Y_Vel[Y_Vel_Idx]
+    }
+    If (Z_Axis == 1)
+    {
+        Current_Z = Next_Z[Z_Idx]
+        Z_Vel = Next_Z_Vel[Z_Vel_Idx]
+    }
+Return
+
+// Subroutine 3 ************************************************************************************
+// Assign coordinate pointers based on CurrentBufferAdr (The start address of Buffer A/B),
+// BufferLength (length of the sub-buffers) and CurrentIndex (position of Next_* pointer within the
+// sub-buffers). If the axis is not activated (see Subroutine 1), it won't be incremented and will
+// remain pointing to the BlankAdr
+// *************************************************************************************************
+
+N103:
+    // Convert absolute address to the index of integer data in the user shared memory buffer (USHM)
+    CalculatedBase = CurrentBufferAdr/ _SIZEOF_INTEGER_;
+    // Integer type buffers
+	Time_Idx = CalculatedBase + CurrentIndex
+	User_Idx = Time_Idx + BuffLen
+    // Double type buffers
+    // Convert index of integer data to double data in USHM
+    A_Idx     = (User_Idx + BuffLen) * _SIZEOF_INTEGER_ / _SIZEOF_DOUBLE_
+    B_Idx     = A_Idx     + BuffLen
+    C_Idx     = B_Idx     + BuffLen
+    U_Idx     = C_Idx     + BuffLen
+    V_Idx     = U_Idx     + BuffLen
+    W_Idx     = V_Idx     + BuffLen
+    X_Idx     = W_Idx     + BuffLen
+    Y_Idx     = X_Idx     + BuffLen
+    Z_Idx     = Y_Idx     + BuffLen
+    A_Vel_Idx = Z_Idx     + BuffLen
+    B_Vel_Idx = A_Vel_Idx + BuffLen
+    C_Vel_Idx = B_Vel_Idx + BuffLen
+    U_Vel_Idx = C_Vel_Idx + BuffLen
+    V_Vel_Idx = U_Vel_Idx + BuffLen
+    W_Vel_Idx = V_Vel_Idx + BuffLen
+    X_Vel_Idx = W_Vel_Idx + BuffLen
+    Y_Vel_Idx = X_Vel_Idx + BuffLen
+    Z_Vel_Idx = Y_Vel_Idx + BuffLen
+
+Return
+
+// Subroutines 4-8 *********************************************************************************
+// Calculate velocities for next move - 4: Master, 5: Prev->Current, 6: Prev->Next, 7: Current->Next
+// 8: Zero velocity for final move
+// Velocities are multiplied by 1000000 because the units of Time are microseconds and the units
+// of velocity are EGUs/second in the PVT move definition
+// *************************************************************************************************
+
+N104:
+    If(PVT_Time == 0)
+    {                      // Set error and abort if demanded move time is zero
+        Traj_Status = Traj_StatusError      // Traj_Status = 3
+        Error = 2
+        PVT_Time = 1000
+        abort
+        Dwell 0
+    }
+
+
+Return
+
+
+
+N108: // Zero
+    A_Vel = 0
+    B_Vel = 0
+    C_Vel = 0
+    U_Vel = 0
+    V_Vel = 0
+    W_Vel = 0
+    X_Vel = 0
+    Y_Vel = 0
+    Z_Vel = 0
+Return
+
+
+// Subroutine 9 ************************************************************************************
+// Move axes
+// *************************************************************************************************
+
+N110:
+    if (Axes > 0) {
+        PVT (PVT_Time * 0.001)                    // Set move time
+        GoSub111
+    }
+    TotalPoints = TotalPoints + 1
+    // If UserFunc is defined and greater than zero, call the corresponding function.
+    // This function is expected to be implemented in either:
+    // trajectory_scan_userfunc_equ_ppmac.pmc or trajectory_scan_userfunc_gpio_ppmac.pmc
+    if (UserCmd > 0) {
+        call UserFunc(UserCmd);
+    }
+
+Return
+
+N111:
+    A(Current_A):(A_Vel) B(Current_B):(B_Vel) C(Current_C):(C_Vel) U(Current_U):(U_Vel) V(Current_V):(V_Vel) W(Current_W):(W_Vel) X(Current_X):(X_Vel) Y(Current_Y):(Y_Vel) Z(Current_Z):(Z_Vel)
+Return
+
+close

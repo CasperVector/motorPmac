@@ -41,6 +41,8 @@ public:
 
     void setOffset(double new_offset);
 
+    void setMasterControlState(int new_control_state);
+
     double getOffset();
 
     void initialSetup(int axisNo);
@@ -83,13 +85,14 @@ private:
     asynStatus getAxisStatus(pmacCommandStore *sPtr);
 
     asynStatus getAxisInitialStatus(void);
-
+    
     int getAxisCSNo();
 
     double getCachedPosition();
 
     double getPosition();
 
+    int masterControl_;
     int assignedCS_;
     double resolution_;
     double offset_;

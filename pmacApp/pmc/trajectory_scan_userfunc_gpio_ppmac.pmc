@@ -1,0 +1,8 @@
+OPEN SUBPROG UserFunc (UserCmd_)
+
+    M32 == UserCmd_ & 1;
+    M33 == (UserCmd_ >> 1) & 1;
+    M34 == (UserCmd_ >> 2) & 1;
+
+RETURN
+CLOSE

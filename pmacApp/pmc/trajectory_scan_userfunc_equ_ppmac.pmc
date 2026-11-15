@@ -1,0 +1,15 @@
+// *****************************************************************************************
+// Disable Position Compare - Using EQU as generic 5V outputs
+// *****************************************************************************************
+Gate3[0].Chan[0].EquOutMask = 0;
+Gate3[0].Chan[1].EquOutMask = 0;
+Gate3[0].Chan[2].EquOutMask = 0;
+
+OPEN SUBPROG UserFunc (UserCmd_)
+
+    Gate3[0].Chan[0].EquOutPol == UserCmd_ & 1;
+    Gate3[0].Chan[1].EquOutPol == (UserCmd_ >> 1) & 1;
+    Gate3[0].Chan[2].EquOutPol == (UserCmd_ >> 2) & 1;
+
+RETURN
+CLOSE

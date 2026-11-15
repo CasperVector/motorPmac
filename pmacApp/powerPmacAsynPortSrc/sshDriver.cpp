@@ -441,14 +441,14 @@ SSHDriverStatus SSHDriver::write(const char *buffer, size_t bufferSize, size_t *
   // Now we need to read back the same numer of bytes, to remove the written string from the buffer
   int bytesToRead = *bytesWritten;
   int bytes = 0;
-  char buff[512];
+  char buff[2048];
   rc = 0;
   int crCount = 0;
 
   // Count the number of \n characters sent
   // Build the expected ECHO string
-  char expected_response[512];
-  memset(expected_response, 0, 512);
+  char expected_response[2048];
+  memset(expected_response, 0, 2048);
   int expected_index = 0;
   for (int index = 0; index < (int)*bytesWritten; index++){
     if (buffer[index] == '\n'){

@@ -213,8 +213,12 @@ asynStatus pmacCSAxis::move(double position, int /*relative*/, double min_veloci
       }
     }
 
-    deviceUnits = position / (double) scale_;
-
+    if (scale_ == 0) {
+      debug(DEBUG_ERROR, functionName, "Error getting CSAxis scale");
+      debug(DEBUG_ERROR, functionName, "  scale_", scale_);
+    } else {
+      deviceUnits = position / static_cast<double>(scale_);
+    }
 
     if (pC_->movesDeferred_ == 0) {
       sprintf(command, "&%d%s%sQ7%d=%.12f", pC_->getCSNumber(), vel_buff,

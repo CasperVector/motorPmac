@@ -153,6 +153,7 @@ pmacController::pmacController(const char *portName, const char *lowLevelPortNam
   initialised_ = 0;
   cid_ = 0;
   cpu_ = "";
+  userBuffSize_ = 0;
   parameterIndex_ = 0;
   lowLevelPortUser_ = NULL;
   movesDeferred_ = 0;
@@ -330,6 +331,15 @@ asynStatus pmacController::initialSetup() {
       // set the echo to 7
       this->lowLevelWriteRead("echo 7", response);
 
+      this->lowLevelWriteRead("size",response);
+      char *userBufferStr = strstr(response, "User Buffer = ");
+      if (userBufferStr != NULL) {
+        sscanf(userBufferStr, "User Buffer = %d", &userBuffSize_);
+        printf("User Buffer Size: 0x%X\n", userBuffSize_);
+      } else {
+        printf("User Buffer not found in the response\n");
+      }
+
     } else if (cid_ == PMAC_CID_GEOBRICK_ || cid_ == PMAC_CID_PMAC_ ||
                cid_ == PMAC_CID_CLIPPER_) {
       pHardware_ = new pmacHardwareTurbo();
@@ -415,6 +425,8 @@ void pmacController::createAsynParams(void) {
   createParam(PMAC_C_AxisBits01String, asynParamInt32, &PMAC_C_AxisBits01_);
   createParam(PMAC_C_AxisBits02String, asynParamInt32, &PMAC_C_AxisBits02_);
   createParam(PMAC_C_AxisBits03String, asynParamInt32, &PMAC_C_AxisBits03_);
+  createParam(PMAC_C_AxisMasterCtrlString, asynParamInt32, &PMAC_C_AxisMasterCtrl_);
+  createParam(PMAC_C_AxisMasterCtrlRBVString, asynParamInt32, &PMAC_C_AxisMasterCtrlRBV_);
   createParam(PMAC_C_ProfileUseAxisAString, asynParamInt32, &PMAC_C_ProfileUseAxisA_);
   createParam(PMAC_C_ProfileUseAxisBString, asynParamInt32, &PMAC_C_ProfileUseAxisB_);
   createParam(PMAC_C_ProfileUseAxisCString, asynParamInt32, &PMAC_C_ProfileUseAxisC_);
@@ -1496,6 +1508,21 @@ asynStatus pmacController::mediumUpdate(pmacCommandStore *sPtr) {
       axisCs = this->getAxis(axis)->getAxisCSNo();
     }
 
+    // Get master control mode
+    std::string master_control_cmd = pHardware_->getMasterControlCmd(axis);
+    if (sPtr->checkForItem(master_control_cmd)) {
+      const std::string result = sPtr->readValue(master_control_cmd);
+      // Set private variable for axis move gating
+      int master_control_mode = stoi(result);
+      this->getAxis(axis)->masterControl_ = master_control_mode;
+      setIntegerParam(axis, PMAC_C_AxisMasterCtrlRBV_, master_control_mode);
+      debugf(DEBUG_VARIABLE, functionName, "Axis %d master control mode:%s",
+        axis, result.c_str());
+    } else {
+      sPtr->addItem(master_control_cmd);
+    }
+    
+    
     //Power pmac coordinate systems are from 0 - 15 so subtract 1
     int power_cs_edit = (cid_ == PMAC_CID_POWER_) ? -1 : 0;
 
@@ -1505,7 +1532,7 @@ asynStatus pmacController::mediumUpdate(pmacCommandStore *sPtr) {
       } else {
         setIntegerParam(axis, PMAC_C_GroupCSPortRBV_, 0);
       }
-      std::string cs_cmd = pHardware_->getCSMappingCmd(axisCs, axis).c_str();
+      std::string cs_cmd = pHardware_->getCSMappingCmd(axisCs, axis);
       if (sPtr->checkForItem(cs_cmd)) {
         const std::string result = pHardware_->parseCSMappingResult(
                 sPtr->readValue(cs_cmd));
@@ -2058,6 +2085,7 @@ asynStatus pmacController::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
   pmacAxis *pAxis = NULL;
   char command[PMAC_MAXBUF_] = {0};
   char response[PMAC_MAXBUF_] = {0};
+  char auxbuffer[PMAC_MAXBUF_] = {0};
   double encRatio = 1.0;
   epicsInt32 encposition = 0;
   const char *name[128];
@@ -2225,7 +2253,8 @@ asynStatus pmacController::writeFloat64(asynUser *pasynUser, epicsFloat64 value)
   } else if (function == PMAC_C_FeedRate_) {
     strcpy(command, "");
     for (int csNo = 1; csNo <= csCount; csNo++) {
-      sprintf(command, "%s &%d%%%lf", command, csNo, value);
+      snprintf(auxbuffer, sizeof(auxbuffer), " &%d%%%lf", csNo, value);
+      strncat(command, auxbuffer, PMAC_MAXBUF_ - strlen(command) -1);
     }
     debug(DEBUG_VARIABLE, functionName, "Feedrate Command", command);
     if (command[0] != 0) {
@@ -2589,6 +2618,8 @@ asynStatus pmacController::writeInt32(asynUser *pasynUser, epicsInt32 value) {
     status = (this->executeManualGroup() == asynSuccess) && status;
   } else if (function == PMAC_C_GroupCSPort_) {
     status = (this->executeManualGroup() == asynSuccess) && status;
+  } else if (function == PMAC_C_AxisMasterCtrl_) {
+    pAxis->setMasterControlState(value);
   }
 
 
@@ -2932,7 +2963,38 @@ asynStatus pmacController::buildProfile(int csNo) {
                              "Buffer memory addresses invalid");
         status = asynError;
       }
-    } else {
+    // For PowerPMAC, get the User buffer size and check if the addresses are valid
+    } else if(!strcmp(cpu_.c_str(),"PowerPC,460EX")    ||   // Single-core PowerPC
+              !strcmp(cpu_.c_str(),"PowerPC,APM86xxx") ||   // Dual-core PowerPC
+              !strcmp(cpu_.c_str(),"arm,LS1021A")      ||   // Dual-core ARM
+              !strcmp(cpu_.c_str(),"arm,LS1043A")){         // Quad-core ARM
+      // ...
+      ////////////////////////////////////////////
+      // Check memory addresses
+      // Default user shared memory configuration - 1 MB ==> 0x100000
+
+      // The first 8 bytes in Sys.pushm structure should remain unused - Buffer Data Structure Elements, Power PMAC Users Manual (May 19, 2023) - p.559
+      // The subsequent 8 bits are reserved for parsing PMAC_TRAJ_AXES
+      if (tScanPmacBufferAddressA_ < 0x000010) {
+        // Set the status to failure
+        this->setBuildStatus(PROFILE_BUILD_DONE, PROFILE_STATUS_FAILURE,
+                             "Buffer A memory address invalid");
+        status = asynError;
+      }
+      if (tScanPmacBufferAddressB_ > (userBuffSize_ - 2*(int)sizeof(int)*tScanPmacBufferSize_ - 18*(int)sizeof(double)*tScanPmacBufferSize_)) {
+        // Set the status to failure
+        this->setBuildStatus(PROFILE_BUILD_DONE, PROFILE_STATUS_FAILURE,
+                             "Buffer B memory address invalid");
+        status = asynError;
+      }
+      // Check if BufferB won't clash with any element of BufferA
+      if (tScanPmacBufferAddressB_ < (tScanPmacBufferAddressA_ + 2*(int)sizeof(int)*tScanPmacBufferSize_ + 18*(int)sizeof(double)*tScanPmacBufferSize_)) {
+        // Set the status to failure
+        this->setBuildStatus(PROFILE_BUILD_DONE, PROFILE_STATUS_FAILURE,
+                             "Buffer memory addresses invalid");
+        status = asynError;
+      }
+    } else{
       // Old Geobrick without additional memory.
       // Check memory addresses are less than of equal to (0x10800-19*buffer_size)
       if (tScanPmacBufferAddressA_ > (0x10800 - (19 * tScanPmacBufferSize_))) {
@@ -3650,6 +3712,8 @@ asynStatus pmacController::sendTrajectoryDemands(int buffer) {
   double velValue = 0.0;
   int userValue = 0;
   int timeValue = 0;
+  int timeAddr = 0;
+  int axisAddr = 0;
   char response[1024];
   char cstr[1024];
   const char *functionName = "sendTrajectoryDemands";
@@ -3692,26 +3756,27 @@ asynStatus pmacController::sendTrajectoryDemands(int buffer) {
       status = asynError;
     }
     // Offset the write address by the epics buffer pointer
-    writeAddress += epicsBufferPtr;
+    pHardware_->getTimeAddr(&timeAddr,writeAddress, epicsBufferPtr);
+    pHardware_->getAxisAddr(&axisAddr,writeAddress, epicsBufferPtr);
 
     // Count how many buffers to fill
     char cmd[2*PMAC_MAX_CS_AXES+2][1024];  // 2 buffers (positions and velocities) per axis, plus time and user buffers
     // cmd[18,19] are reserved for the user and time values
-    pHardware_->startTrajectoryTimePointsCmd(cmd[2*PMAC_MAX_CS_AXES], cmd[2*PMAC_MAX_CS_AXES+1], writeAddress);
+    pHardware_->startTrajectoryTimePointsCmd(cmd[2*PMAC_MAX_CS_AXES], cmd[2*PMAC_MAX_CS_AXES+1], timeAddr,
+                                             tScanPmacBufferSize_);
 
     posCmd = true;
     // cmd[0..8] are reserved for axis positions
     for (int index = 0; index < PMAC_MAX_CS_AXES; index++) {
       if ((1 << index & tScanAxisMask_) > 0) {
-        pHardware_->startAxisPointsCmd(cmd[index], index, writeAddress, tScanPmacBufferSize_,
-                                       posCmd);
+        pHardware_->startAxisPointsCmd(cmd[index], index, axisAddr, tScanPmacBufferSize_, posCmd);
       }
     }
     posCmd = false;
     // cmd[9..17] are reserved for axis velocities
     for (int index = 0; index < PMAC_MAX_CS_AXES; index++) {
       if ((1 << index & tScanAxisMask_) > 0) {
-        pHardware_->startAxisPointsCmd(cmd[index+PMAC_MAX_CS_AXES], index, writeAddress, tScanPmacBufferSize_,
+        pHardware_->startAxisPointsCmd(cmd[index+PMAC_MAX_CS_AXES], index, axisAddr, tScanPmacBufferSize_,
                                        posCmd);
       }
     }
@@ -4364,6 +4429,7 @@ asynStatus pmacController::processDeferredMoves(void) {
   asynStatus status = asynSuccess;
   char command[PMAC_MAXBUF_] = {0};
   char response[PMAC_MAXBUF_] = {0};
+  char auxbuffer[PMAC_MAXBUF_] = {0};
   pmacAxis *pAxis = NULL;
   static const char *functionName = "processDeferredMoves";
 
@@ -4375,9 +4441,10 @@ asynStatus pmacController::processDeferredMoves(void) {
     pAxis = getAxis(axis);
     if (pAxis != NULL) {
       if (pAxis->deferredMove_) {
-        sprintf(command, "%s #%d%s%.2f", command, pAxis->axisNo_,
+        snprintf(auxbuffer, sizeof(auxbuffer), " #%d%s%.2f", pAxis->axisNo_,
                 pAxis->deferredRelative_ ? "J^" : "J=",
                 pAxis->deferredPosition_);
+        strncat(command, auxbuffer, PMAC_MAXBUF_ - strlen(command) -1);
       }
     }
   }
@@ -4413,6 +4480,7 @@ asynStatus pmacController::executeManualGroup() {
   std::string csPortName;
   char csAssignment[MAX_STRING_SIZE];
   char cmd[PMAC_MAXBUF];
+  char auxbuffer[PMAC_MAXBUF];
   static const char *functionName = "executeManualGroup";
 
   debug(DEBUG_FLOW, functionName);
@@ -4440,7 +4508,8 @@ asynStatus pmacController::executeManualGroup() {
             if (csNo != 0) {
               // Read the assignment string for this axis
               getStringParam(axis, PMAC_C_GroupAssign_, MAX_STRING_SIZE, csAssignment);
-              sprintf(cmd, "%s &%d#%d->%s ", cmd, csNo, axis, csAssignment);
+              snprintf(auxbuffer, sizeof(auxbuffer), " &%d#%d->%s ", csNo, axis, csAssignment);
+              strncat(cmd, auxbuffer, PMAC_MAXBUF - strlen(cmd) - 1);
             }
           }
         }
@@ -4657,7 +4726,7 @@ asynStatus pmacController::tScanCalculateVelocityArray(double *positions, double
   int prevBuffLastVelMode = -1;
   double prevBuffPosition = 0;
   double prevBuffVelocity = 0;
-  int prevBuffTime = 0;
+  double prevBuffTime = 0;
 
   // Check if there is a velocity calculation pending from previous buffer
   if((1 << axis & tScanPendingPoint_) > 0) {

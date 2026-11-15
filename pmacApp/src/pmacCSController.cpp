@@ -369,7 +369,7 @@ asynStatus pmacCSController::processDeferredMoves(void) {
     pAxis = getAxis(axis);
     if (pAxis != NULL) {
       if (pAxis->deferredMove_) {
-        sprintf(command, "%s %s", command, pAxis->deferredCommand_);
+        strncat(command, pAxis->deferredCommand_, PMAC_MAXBUF - strlen(command) - 1);
         executeDeferred = 1;
       }
     }

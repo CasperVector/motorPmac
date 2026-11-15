@@ -16,6 +16,30 @@ site location of dependencies.
 Release Notes
 =============
 
+R2-7-7 (Oct 2, 2025)
+* Extend SSH buffer length                              - PR [#142](https://github.com/DiamondLightSource/pmac/pull/142)
+* Update PowerPMAC trajectory to user shared-memory     - PR [#130](https://github.com/DiamondLightSource/pmac/pull/130)
+
+R2-7-4 (Sep 19, 2025)
+* Add EQU to ppmac trajectory scan code (#146)  - PR [#146](https://github.com/DiamondLightSource/pmac/pull/146)
+
+R2-7-2 (Aug 29, 2025)
+* Prevent vxWorks build                         - PR [#147](https://github.com/DiamondLightSource/pmac/pull/147)
+
+R2-7-1 (Aug 21, 2025)
+==========================
+### Changes
+* Fix Trajectories string for PowerPMAC         - PR [#145](https://github.com/DiamondLightSource/pmac/pull/145)
+
+R2-7-0 (Aug 19, 2025)
+==========================
+### Changes
+* Add RTEMS support                             - PR [#129](https://github.com/DiamondLightSource/pmac/pull/129)
+* Add dependency on src to tests                - PR [#131](https://github.com/DiamondLightSource/pmac/pull/131)
+* Update deprecated function in Boost           - PR [#133](https://github.com/DiamondLightSource/pmac/pull/133)
+* Add library dependencies for pmacAsynIPPort   - PR [#134](https://github.com/DiamondLightSource/pmac/pull/134)
+
+
 
 R2-6-5 (Nov 13, 2024)
 ==========================
