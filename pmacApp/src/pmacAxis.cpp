@@ -188,8 +188,6 @@ asynStatus pmacAxis::getAxisInitialStatus(void) {
   char command[PMAC_MAXBUF] = {0};
   char response[PMAC_MAXBUF] = {0};
   int cmdStatus = 0;
-  double low_limit = 0.0;
-  double high_limit = 0.0;
   double pgain = 0.0;
   double igain = 0.0;
   double dgain = 0.0;
@@ -203,7 +201,7 @@ asynStatus pmacAxis::getAxisInitialStatus(void) {
 
     sprintf(command, "I%d13 I%d14 I%d30 I%d31 I%d33", axisNo_, axisNo_, axisNo_, axisNo_, axisNo_);
     cmdStatus = pC_->lowLevelWriteRead(command, response);
-    nvals = sscanf(response, "%lf %lf %lf %lf %lf", &high_limit, &low_limit, &pgain, &dgain,
+    nvals = sscanf(response, "%lf %lf %lf %lf %lf", &highLimit_, &lowLimit_, &pgain, &dgain,
                    &igain);
 
     if (cmdStatus || nvals != 5) {
@@ -211,8 +209,8 @@ asynStatus pmacAxis::getAxisInitialStatus(void) {
                 "%s: Error: initial status poll failed on axis %d.\n", functionName, axisNo_);
       return asynError;
     } else {
-      setDoubleParam(pC_->motorLowLimit_, low_limit * scale_);
-      setDoubleParam(pC_->motorHighLimit_, high_limit * scale_);
+      setDoubleParam(pC_->motorLowLimit_, lowLimit_ * scale_);
+      setDoubleParam(pC_->motorHighLimit_, highLimit_ * scale_);
       setDoubleParam(pC_->motorPGain_, pgain);
       setDoubleParam(pC_->motorIGain_, igain);
       setDoubleParam(pC_->motorDGain_, dgain);
@@ -244,7 +242,7 @@ void pmacAxis::setResolution(double new_resolution)
   debug(DEBUG_TRACE, functionName, "Setting axis resolution", new_resolution);
   this->resolution_ = new_resolution;
   if (this->connected_){
-    sprintf(command, "P%d=%f", p_var, this->resolution_);
+    sprintf(command, "P%d=%.12f", p_var, this->resolution_);
     debug(DEBUG_TRACE, functionName, "Axis resolution P variable command", command);
     pC_->axisWriteRead(command, response);
   }
@@ -264,7 +262,7 @@ void pmacAxis::setOffset(double new_offset)
   debug(DEBUG_TRACE, functionName, "Setting axis offset", new_offset);
   this->offset_ = new_offset;
   if (this->connected_){
-    sprintf(command, "P%d=%f", p_var, this->offset_);
+    sprintf(command, "P%d=%.12f", p_var, this->offset_);
     debug(DEBUG_TRACE, functionName, "Axis offset P variable command", command);
     pC_->axisWriteRead(command, response);
   }
@@ -717,7 +715,7 @@ asynStatus pmacAxis::getAxisStatus(pmacCommandStore *sPtr) {
         // Parse the position
         sprintf(key, "#%dP", axisNo_);
         value = sPtr->readValue(key);
-        nvals = sscanf(value.c_str(), "%lf", &enc_position);
+        nvals = sscanf(value.c_str(), "%lf", &position);
         if (nvals != 1) {
             asynPrint(pC_->pasynUserSelf, ASYN_TRACE_ERROR,
                       "%s: Failed to parse position. Key: %s  Value: %s\n",
@@ -730,11 +728,11 @@ asynStatus pmacAxis::getAxisStatus(pmacCommandStore *sPtr) {
             sprintf(key, "#%dP", encoder_axis_);
         } else {
             // Encoder position comes back on this axis - note we initially read
-            // the following error into the position variable
+            // the following error into the encoder position variable
             sprintf(key, "#%dF", axisNo_);
         }
         value = sPtr->readValue(key);
-        nvals = sscanf(value.c_str(), "%lf", &position);
+        nvals = sscanf(value.c_str(), "%lf", &enc_position);
         if (nvals != 1) {
             asynPrint(pC_->pasynUserSelf, ASYN_TRACE_ERROR,
                       "%s: Failed to parse following error. Key: %s  Value: %s\n",
@@ -748,9 +746,12 @@ asynStatus pmacAxis::getAxisStatus(pmacCommandStore *sPtr) {
             //int homeSignal = ((status[1] & pC_->PMAC_STATUS2_HOME_COMPLETE) != 0);
             int direction = 0;
 
-            // For closed loop axes, position is actually following error up to this point
+            // For closed loop axes, encoder position is actually following error up to this point
             if (encoder_axis_ == 0) {
+                // Set raw motor position to be position + following error
                 position += enc_position;
+                // Set encoder position to be position (no following error)
+                enc_position = position - enc_position;
             }
 
             // Store the raw position
@@ -884,7 +885,7 @@ asynStatus pmacAxis::getAxisStatus(pmacCommandStore *sPtr) {
         }
 
         // if the motor stopped in an unexpected fashion, make sure the CS demands are reset
-        if (!amp_enabled_ || axStatus.followingError_ || !axStatus.power_||
+        if ( axStatus.followingError_ ||
                 axStatus.lowLimit_|| axStatus.highLimit_) {
             // make sure that pmacController->makeCSDemandsConsistent will reset the demand for all axes
             int csNum = getAxisCSNo();

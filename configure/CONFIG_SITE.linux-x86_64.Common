@@ -1,8 +1,7 @@
-BOOST           = /usr
-BOOST_LIB       = $(BOOST)/lib
-BOOST_INCLUDE   = -I$(BOOST)/include
-
 SSH             = /usr
 SSH_LIB         = $(SSH)/lib64
 SSH_INCLUDE     = -I$(SSH)/include
+
+# Build unit tests (requires BOOST)
+WITH_BOOST = YES
 

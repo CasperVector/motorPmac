@@ -16,6 +16,63 @@ site location of dependencies.
 Release Notes
 =============
 
+R2-5-16 (May 26, 2022)
+==========================
+### Changes
+* A fix in 2-5-10 caused the .REP field to just show the following error when the encoder is on the same
+  axis (versus another channel). Previous behaviour has now been restored for this type of axis:
+    * .RMP is reported position plus following error
+    * .REP is reported position without following error
+    * This allows the following error and max following error records to work again.
+
+R2-5-15 (May 26, 2022)
+==========================
+### Changes
+* Soft limit behaviour has been changed in pmacController. When setting soft limits which result in
+either ix13 or ix14 being zero (i.e. not both) the soft limit is now set to 1 count to avoid disabling
+it. To disable soft limits you can set DHLM=DLLM=0, which is consistent with the motor record behaviour.
+
+R2-5-14 (May 3, 2022)
+==========================
+### Changes
+* pmacAxis: increase setting resolution and offset precision to 12 d.p. to fully fix loss of precision introduced in 2-5
+
+R2-5-13 (April 21, 2022)
+==========================
+### Changes
+* add pmacVariableRead screens
+
+R2-5-12 (April 19, 2022)
+==========================
+### Changes
+* pmacAxis: increase setting resolution and offset precision to 9 d.p. to partially fix loss of precision introduced in 2-5
+
+R2-5-11 (March 25, 2022)
+==========================
+### Changes
+* add CSS screens for aperture slits
+
+R2-5-10 (March 4, 2022)
+==========================
+### Changes
+* make simple-power-pmac non DLS dependent
+* add builder support for open loop encoder axis (Jira BC-1427)
+
+R2-5-9 (March 4, 2022)
+==========================
+### Changes
+* stop adding pmacVariableWrite screens when using symetrie_hexapod_CS screen
+
+R2-5-8 (November 15, 2021)
+==========================
+### Changes
+* add pmac_autohome.opi screen
+
+R2-5-7 (November 4, 2021)
+==========================
+### Changes
+* remove amplifier enabled and axis status power flags from check used to reset CS demand values
+
 R2-5-6 (September 22, 2021)
 ==========================
 ### Changes

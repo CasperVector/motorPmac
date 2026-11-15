@@ -27,11 +27,13 @@ DB += motor_in_cs.template
 DB += eloss_kill_autohome_records.template
 DB += pmacVariableWrite.template
 DB += pmacVariableRead.template
+DB += pmacVariableReadLED.template
 DB += autohome.template
 DB += encoder_readback.template
 DB += run_plc.template
 DB += run_command.template
 DB += motion_stop.template
+DB += geobrickette_motion_stop.template
 DB += basic_pmac_motor.template
 
 # The following templates are used for Coordinate Systems
